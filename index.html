@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Salon Pro — Dashboard Completo</title>
+  <style>
+    /* ===== Estilos Globales ===== */
+    body { margin:0; font-family: Arial, sans-serif; background: #121212; color: #fff; }
+    .hidden { display: none; }
+    .container { max-width:900px; margin:20px auto; padding:10px; }
+    .btn { padding:8px 12px; background:#4caf50; color:#fff; border:none; cursor:pointer; margin:4px; }
+    .btn.danger { background:#f44336; }
+    .topbar { background:#1a1a1a; padding:10px; display:flex; align-items:center; }
+    .spacer { flex:1; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th,td { padding:8px; border:1px solid #444; }
+    input, select { padding:6px; margin:4px 0; width:100%; box-sizing:border-box; background:#222; color:#fff; border:1px solid #555; }
+    label { margin-top:8px; display:block; }
+    h2 { margin-top:0; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .card { background:#1e1e1e; padding:10px; margin:10px 0; border-radius:6px; }
+    .filters { margin:10px 0; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div id="salonName">Salon Pro</div>
+    <div class="spacer"></div>
+    <button class="btn" id="btnLogout" style="display:none;">Cerrar sesión</button>
+  </div>
+  <div class="container">
+
+    <!-- Login -->
+    <section id="viewLogin">
+      <h2>Login</h2>
+      <label>Usuario</label>
+      <input type="text" id="loginUser" placeholder="usuario">
+      <label>Contraseña</label>
+      <input type="password" id="loginPass" placeholder="contraseña">
+      <button class="btn" id="btnDoLogin">Ingresar</button>
+    </section>
+
+    <!-- Menú -->
+    <section id="viewMenu" class="hidden">
+      <h2>Menú</h2>
+      <button class="btn" id="toAgenda">Agenda</button>
+      <button class="btn" id="toBilling">Cobros/Facturas</button>
+      <button class="btn" id="toAnalytics">Rendimiento</button>
+      <button class="btn" id="toConfig">Configuración</button>
+      <button class="btn" id="toBackups">Backups</button>
+    </section>
+
+    <!-- Agenda -->
+    <section id="viewAgenda" class="hidden">
+      <button class="btn" data-back>← Regresar al menú</button>
+      <h2>Agenda</h2>
+      <div class="card">
+        <div class="row">
+          <div style="flex:1">
+            <label>Fecha:</label><input type="date" id="apDate">
+          </div>
+          <div style="flex:1">
+            <label>Hora:</label><input type="time" id="apTime">
+          </div>
+          <div style="flex:1">
+            <label>Cliente:</label><input type="text" id="apClient">
+          </div>
+          <div style="flex:1">
+            <label>Técnica:</label><select id="apTech"></select>
+          </div>
+        </div>
+        <button class="btn" id="btnSaveAp">Guardar cita</button>
+      </div>
+      <table id="tblAp">
+        <thead><tr><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Técnica</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Cobros / Facturas -->
+    <section id="viewBilling" class="hidden">
+      <button class="btn" data-back>← Regresar al menú</button>
+      <h2>Cobros / Facturas</h2>
+      <div class="card">
+        <div class="row">
+          <div style="flex:1">
+            <label>Fecha:</label><input type="date" id="invDate">
+          </div>
+          <div style="flex:1">
+            <label>Hora:</label><input type="time" id="invTime">
+          </div>
+          <div style="flex:1">
+            <label>Cliente:</label><input type="text" id="invClient">
+          </div>
+          <div style="flex:1">
+            <label>Técnica:</label><select id="invTech"></select>
+          </div>
+        </div>
+        <div class="row">
+          <div style="flex:1">
+            <label>Método de pago:</label>
+            <select id="invPay"><option>Cash</option><option>Tarjeta</option><option>ATH Móvil</option></select>
+          </div>
+          <div style="flex:1">
+            <label>Monto:</label><input type="number" id="invAmount" step="0.01">
+          </div>
+        </div>
+        <button class="btn" id="btnSaveInv">Guardar factura</button>
+      </div>
+
+      <div class="filters card">
+        <div class="row">
+          <div style="flex:1">
+            <label>Filtrar técnica:</label>
+            <select id="invTechFilter"><option value="(todas)">(todas)</option></select>
+          </div>
+          <div style="flex:1">
+            <label>Periodo:</label>
+            <select id="invPeriodFilter">
+              <option value="all">Todo</option>
+              <option value="today">Hoy</option>
+              <option value="this_month">Este mes</option>
+              <option value="this_year">Este año</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn" id="btnTechCSV">Exportar CSV (Técnica/Periodo)</button>
+          <button class="btn" id="btnTechPDF">Exportar PDF (Técnica/Periodo)</button>
+        </div>
+      </div>
+
+      <table id="tblInv">
+        <thead><tr><th>#</th><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Técnica</th><th>Monto</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <!-- Rendimiento / Analytics -->
+    <section id="viewAnalytics" class="hidden">
+      <button class="btn" data-back>← Regresar al menú</button>
+      <h2>Rendimiento</h2>
+      <div class="card">
+        <div class="row">
+          <label>Rango:</label>
+          <select id="rangeKPI">
+            <option value="day">Diario</option>
+            <option value="month" selected>Mensual</option>
+            <option value="year">Anual</option>
+          </select>
+          <button class="btn" id="btnExportAnalPDF">Exportar PDF</button>
+        </div>
+      </div>
+      <div class="card" id="analyticsContent">
+        <!-- Aquí se mostrarán los indicadores -->
+      </div>
+    </section>
+
+    <!-- Configuración -->
+    <section id="viewConfig" class="hidden">
+      <button class="btn" data-back>← Regresar al menú</button>
+      <h2>Configuración</h2>
+      <div class="card">
+        <div class="row">
+          <div style="flex:1">
+            <label>Nombre del Salón:</label><input type="text" id="cfgSalonName">
+          </div>
+          <div style="flex:1">
+            <label>Prefijo de factura:</label><input type="text" id="invPrefix">
+          </div>
+          <div style="flex:1">
+            <label>Próximo número factura:</label><input type="number" id="invNext">
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn" id="btnSaveConfig">Guardar Configuración</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Backups -->
+    <section id="viewBackups" class="hidden">
+      <button class="btn" data-back>← Regresar al menú</button>
+      <h2>Backups y Restauración</h2>
+      <div class="card">
+        <button class="btn" id="btnBackupInvoices">Backup facturas (JSON)</button>
+        <button class="btn" id="btnBackupAppointments">Backup citas (JSON)</button>
+        <input type="file" id="inputRestore" accept="application/json">
+      </div>
+    </section>
+
+  </div>
+
+<script>
+// ===== Utilidades =====
+const S = {
+  key: k => `salon.${k}`,
+  load: (k, def) => {
+    try { return JSON.parse(localStorage.getItem(S.key(k))) ?? def } catch(e){ return def; }
+  },
+  save: (k,v) => localStorage.setItem(S.key(k), JSON.stringify(v)),
+  uid: () => Math.random().toString(36).substr(2, 9),
+  today: () => new Date().toISOString().slice(0,10),
+  pad: n => String(n).padStart(2,'0'),
+  download: (name, content, type='text/plain') => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([content], {type}));
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+};
+
+// ===== Estado =====
+const state = {
+  session: S.load('session', null),
+  users: S.load('users', [
+    {user:'admin', pass:'admin', role:'admin'},
+    {user:'user', pass:'user', role:'user'}
+  ]),
+  techs: S.load('techs', ['General']),
+  appointments: S.load('appointments', []),
+  invoices: S.load('invoices', []),
+  cfg: S.load('cfg', {
+    salonName: 'Salon Pro',
+    invoice: { prefix: 'INV-', next: 1 }
+  })
+};
+
+function persistAll(){
+  S.save('session', state.session);
+  S.save('techs', state.techs);
+  S.save('appointments', state.appointments);
+  S.save('invoices', state.invoices);
+  S.save('cfg', state.cfg);
+}
+
+// ===== Vistas =====
+const views = {
+  login: document.getElementById('viewLogin'),
+  menu: document.getElementById('viewMenu'),
+  agenda: document.getElementById('viewAgenda'),
+  billing: document.getElementById('viewBilling'),
+  analytics: document.getElementById('viewAnalytics'),
+  config: document.getElementById('viewConfig'),
+  backups: document.getElementById('viewBackups')
+};
+
+function showView(name){
+  for(let v in views){
+    views[v].classList.add('hidden');
+  }
+  views[name].classList.remove('hidden');
+  document.getElementById('btnLogout').style.display = state.session ? 'inline-block' : 'none';
+}
+
+// ===== Login / Logout =====
+document.getElementById('btnDoLogin').onclick = ()=>{
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value.trim();
+  const found = state.users.find(x=> x.user===u && x.pass===p);
+  if(found){
+    state.session = { user: found.user, role: found.role };
+    persistAll();
+    alert('Ingreso exitoso');
+    loadInitial();
+  } else {
+    alert('Usuario o contraseña incorrectos');
+  }
+};
+
+document.getElementById('btnLogout').onclick = ()=>{
+  state.session = null;
+  persistAll();
+  showView('login');
+};
+
+// ===== Menú botones =====
+document.getElementById('toAgenda').onclick = ()=> showView('agenda');
+document.getElementById('toBilling').onclick = ()=> showView('billing');
+document.getElementById('toAnalytics').onclick = ()=> showView('analytics');
+document.getElementById('toConfig').onclick = ()=> showView('config');
+document.getElementById('toBackups').onclick = ()=> showView('backups');
+
+// Botón regresar
+document.querySelectorAll('button[data-back]').forEach(b=>{
+  b.onclick = ()=> showView('menu');
+});
+
+// ===== Técnicas carga =====
+function refreshTechs(){
+  const selAp = document.getElementById('apTech');
+  const selInv = document.getElementById('invTech');
+  const selFilter = document.getElementById('invTechFilter');
+  if(selAp){
+    selAp.innerHTML = state.techs.map(t=> `<option value="${t}">${t}</option>`).join('');
+  }
+  if(selInv){
+    selInv.innerHTML = state.techs.map(t=> `<option value="${t}">${t}</option>`).join('');
+  }
+  if(selFilter){
+    const opts = ['(todas)', ...state.techs];
+    selFilter.innerHTML = opts.map(t=> `<option value="${t}">${t}</option>`).join('');
+  }
+}
+
+// ===== Agenda funciones =====
+document.getElementById('btnSaveAp').onclick = ()=>{
+  const date = document.getElementById('apDate').value;
+  const time = document.getElementById('apTime').value;
+  const client = document.getElementById('apClient').value.trim();
+  const tech = document.getElementById('apTech').value;
+  if(!date || !time || !client){
+    alert('Completa todos los campos de la cita');
+    return;
+  }
+  state.appointments.push({ id: S.uid(), date, time, client, tech });
+  persistAll();
+  renderAp();
+};
+
+function renderAp(){
+  const tbody = document.querySelector('#tblAp tbody');
+  if(!tbody) return;
+  tbody.innerHTML = state.appointments.map(a=>`
+    <tr>
+      <td>${a.date}</td><td>${a.time}</td><td>${a.client}</td><td>${a.tech}</td>
+    </tr>
+  `).join('');
+}
+
+// ===== Facturas funciones =====
+document.getElementById('btnSaveInv').onclick = ()=>{
+  const date = document.getElementById('invDate').value;
+  const time = document.getElementById('invTime').value;
+  const client = document.getElementById('invClient').value.trim();
+  const tech = document.getElementById('invTech').value;
+  const amount = parseFloat(document.getElementById('invAmount').value) || 0;
+  if(!date || !time || !client || !tech || amount <= 0){
+    alert('Completa todos los campos de la factura');
+    return;
+  }
+  const num = `${state.cfg.invoice.prefix}${String(state.cfg.invoice.next).padStart(4,'0')}`;
+  state.invoices.push({ id: S.uid(), number: num, date, time, client, tech, amount });
+  state.cfg.invoice.next++;
+  persistAll();
+  renderInv();
+};
+
+function renderInv(){
+  const tbody = document.querySelector('#tblInv tbody');
+  if(!tbody) return;
+  tbody.innerHTML = state.invoices.map(i=>`
+    <tr>
+      <td>${i.number}</td><td>${i.date}</td><td>${i.time}</td><td>${i.client}</td><td>${i.tech}</td><td>$${i.amount.toFixed(2)}</td>
+    </tr>
+  `).join('');
+}
+
+// ===== Export por técnica y periodo =====
+document.getElementById('btnTechCSV').onclick = ()=>{
+  const tech = document.getElementById('invTechFilter').value;
+  const period = document.getElementById('invPeriodFilter').value;
+  let list = state.invoices.slice();
+
+  // Filtrar período
+  const pr = getPeriodRange(period);
+  if(pr){
+    list = list.filter(i=>{
+      const d = new Date(i.date);
+      return (!pr.from || d >= pr.from) && (!pr.to || d < pr.to);
+    });
+  }
+  if(tech && tech !== '(todas)'){
+    list = list.filter(i=> i.tech === tech);
+  }
+
+  const rows = [['Número','Fecha','Hora','Cliente','Técnica','Monto'], ... list.map(i=>[i.number, i.date, i.time, i.client, i.tech, i.amount.toFixed(2)])];
+  const csv = rows.map(r=> r.map(x=> `"${x}"`).join(',')).join('\n');
+  S.download(`cobros_${tech}_${period}_${Date.now()}.csv`, csv, 'text/csv');
+};
+
+document.getElementById('btnTechPDF').onclick = ()=>{
+  const tech = document.getElementById('invTechFilter').value;
+  const period = document.getElementById('invPeriodFilter').value;
+  let list = state.invoices.slice();
+
+  const pr = getPeriodRange(period);
+  if(pr){
+    list = list.filter(i=>{
+      const d = new Date(i.date);
+      return (!pr.from || d >= pr.from) && (!pr.to || d < pr.to);
+    });
+  }
+  if(tech && tech !== '(todas)'){
+    list = list.filter(i=> i.tech === tech);
+  }
+
+  const rowsHtml = list.map(i=>`
+    <tr>
+      <td>${i.number}</td><td>${i.date}</td><td>${i.time}</td><td>${i.client}</td><td>${i.tech}</td><td>$${i.amount.toFixed(2)}</td>
+    </tr>
+  `).join('');
+
+  const htmlPrint = `
+    <html><head><meta charset="utf-8"><title>Cobros ${tech} ${period}</title>
+    <style>
+      body { font-family: Arial, sans-serif; color:#000; }
+      table { width:100%; border-collapse: collapse; }
+      th,td { border:1px solid #666; padding:6px; }
+      th { background:#ddd; }
+    </style>
+    </head><body>
+      <h2>Cobros — Técnica ${tech} — Periodo ${period}</h2>
+      <table>
+        <thead><tr><th>Número</th><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Técnica</th><th>Monto</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </body></html>
+  `;
+  const w = window.open('','_blank');
+  w.document.write(htmlPrint);
+  w.document.close();
+  w.focus();
+  w.print();
+};
+
+// ===== Período auxiliar =====
+function getPeriodRange(period){
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  if(period === 'today') return { from: startOfDay, to: new Date(startOfDay.getFullYear(), startOfDay.getMonth(), startOfDay.getDate()+1) };
+  if(period === 'this_month') return { from: startOfMonth, to: new Date(now.getFullYear(), now.getMonth()+1, 1) };
+  if(period === 'this_year') return { from: startOfYear, to: new Date(now.getFullYear()+1, 0, 1) };
+  return null;
+}
+
+// ===== Analytics =====
+document.getElementById('btnExportAnalPDF').onclick = ()=>{
+  const range = document.getElementById('rangeKPI').value;
+  let list = state.invoices.slice();
+  const pr = getPeriodRange(range);
+  if(pr){
+    list = list.filter(i=>{
+      const d = new Date(i.date);
+      return (!pr.from || d >= pr.from) && (!pr.to || d < pr.to);
+    });
+  }
+  const total = list.reduce((acc,i)=> acc + i.amount, 0);
+
+  // Mostrar PDF simple
+  const rowsHtml = list.map(i=>`
+    <tr><td>${i.number}</td><td>${i.date}</td><td>${i.client}</td><td>${i.tech}</td><td>$${i.amount.toFixed(2)}</td></tr>
+  `).join('');
+
+  const htmlPrint = `
+    <html><head><meta charset="utf-8"><title>Analytics ${range}</title>
+    <style>
+      body { font-family: Arial, sans-serif; color:#000; }
+      table { width:100%; border-collapse: collapse; }
+      th,td { border:1px solid #666; padding:6px; }
+      th { background:#ddd; }
+    </style>
+    </head><body>
+      <h2>Rendimiento — ${range}</h2>
+      <div>Total Ingresos: $${total.toFixed(2)}</div>
+      <table>
+        <thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Técnica</th><th>Monto</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </body></html>
+  `;
+  const w = window.open('','_blank');
+  w.document.write(htmlPrint);
+  w.document.close();
+  w.focus();
+  w.print();
+};
+
+// ===== Configuración guardar =====
+document.getElementById('btnSaveConfig').onclick = ()=>{
+  const nm = document.getElementById('cfgSalonName').value.trim();
+  const pref = document.getElementById('invPrefix').value.trim();
+  const nxt = parseInt(document.getElementById('invNext').value, 10);
+  if(nm) state.cfg.salonName = nm;
+  if(pref) state.cfg.invoice.prefix = pref;
+  if(!isNaN(nxt) && nxt > 0) state.cfg.invoice.next = nxt;
+  persistAll();
+  document.getElementById('salonName').textContent = state.cfg.salonName;
+  alert('Configuración guardada');
+};
+
+// ===== Backups / Restauración =====
+document.getElementById('btnBackupInvoices').onclick = ()=>{
+  const data = JSON.stringify(state.invoices, null, 2);
+  S.download(`invoices-backup-${Date.now()}.json`, data, 'application/json');
+};
+document.getElementById('btnBackupAppointments').onclick = ()=>{
+  const data = JSON.stringify(state.appointments, null, 2);
+  S.download(`appointments-backup-${Date.now()}.json`, data, 'application/json');
+};
+document.getElementById('inputRestore').onchange = (e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  f.text().then(txt=>{
+    try {
+      const obj = JSON.parse(txt);
+      // Decidir restaurar facturas o citas o ambos si el JSON tiene estructura
+      if(Array.isArray(obj)){
+        // suponer son facturas si tienen campo 'number', citas si tienen campo 'client' y 'time' etc
+        if(obj.length>0 && obj[0].hasOwnProperty('number')){
+          state.invoices = obj;
+        } else if(obj[0].hasOwnProperty('date') && obj[0].hasOwnProperty('time')){
+          state.appointments = obj;
+        }
+        persistAll();
+        renderInv();
+        renderAp();
+        alert('Restauración completada');
+      } else {
+        alert('Archivo JSON no válido');
+      }
+    } catch(err){
+      alert('Error al restaurar: ' + err);
+    }
+  });
+};
+
+// ===== Inicialización =====
+function loadInitial(){
+  if(state.session){
+    document.getElementById('salonName').textContent = state.cfg.salonName;
+    refreshTechs();
+    renderAp();
+    renderInv();
+    showView('menu');
+  } else {
+    showView('login');
+  }
+}
+
+window.onload = ()=>{
+  loadInitial();
+};
+
+</script>
+
+</body>
+</html>
