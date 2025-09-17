@@ -1117,66 +1117,33 @@ function getPeriodRange(period) {
 }
 
 // ===== Añadido: agrupar facturas considerando periodo y técnica =====
-function exportInvGroupedCSV(mode){
-  const nice = mode==='tech'?'Técnica':mode==='day'?'Día':'Hora';
-  
-  // 👇 tomar técnica seleccionada
-  const techSel = document.getElementById('invTechFilter')?.value || '(todas)';
-  
-  const data = groupInvoices(mode); // ya filtra adentro
-  const rows = [[nice,'Cantidad','Total ($)']];
-  data.forEach(r=>rows.push([r.key, r.count, r.total.toFixed(2)]));
-  
-  const name = (techSel==='(todas)')
-    ? `cobros-por-${mode}-${Date.now()}.csv`
-    : `cobros-${techSel}-por-${mode}-${Date.now()}.csv`;
-    
-  S.download(name, S.csv(rows), 'text/csv');
-}
+function groupInvoices(mode){
+  const list = state.invoices || [];
 
-function exportInvGroupedPDF(mode){
-  const nice = mode==='tech'?'Técnica':mode==='day'?'Día':'Hora';
-  
-  // 👇 tomar técnica seleccionada
-  const techSel = document.getElementById('invTechFilter')?.value || '(todas)';
-  
-  const data = groupInvoices(mode); // ya filtra adentro
-  const sumTotal = data.reduce((a,x)=>a+x.total,0);
-  const sumCount = data.reduce((a,x)=>a+x.count,0);
+  // 🔎 tomar la técnica seleccionada del filtro
+  const sel = document.getElementById('invTechFilter');
+  const techSel = sel ? sel.value : '(todas)';
 
-  const rows = data.map(r=>`
-    <tr>
-      <td>${r.key}</td>
-      <td style="text-align:right">${r.count}</td>
-      <td style="text-align:right">$${r.total.toFixed(2)}</td>
-    </tr>`).join('');
+  // 🔧 aplicar filtro
+  const filtered = (techSel === '(todas)') 
+    ? list 
+    : list.filter(i => (i.tech || '').trim() === techSel.trim());
 
-  const html = `
-  <html><head><meta charset="utf-8"><title>Cobros por ${nice}</title>
-  <style>
-    @page{ size:A4 landscape; margin:12mm }
-    body{ font-family:${state.cfg.font}; color:#111 }
-    h1{ margin:0 0 8px 0; font-size:18px }
-    .meta{ color:#555; margin-bottom:8px }
-    table{ width:100%; border-collapse:collapse; font-size:12px }
-    th,td{ border:1px solid #cfcfcf; padding:6px 8px }
-    th{ background:#f3f3f3; text-align:left }
-    tfoot td{ font-weight:700; background:#fafafa }
-  </style></head><body>
-    <h1>Historial de Cobros — Agrupado por ${nice}</h1>
-    <div class="meta">Filtro: ${techSel} · Generado: ${new Date().toLocaleString()}</div>
-    <table>
-      <thead><tr><th>${nice}</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Total</th></tr></thead>
-      <tbody>${rows || ''}</tbody>
-      <tfoot>
-        <tr><td>TOTAL</td><td style="text-align:right">${sumCount}</td><td style="text-align:right">$${sumTotal.toFixed(2)}</td></tr>
-      </tfoot>
-    </table>
-  </body></html>`;
+  const keyFn = mode==='tech'
+    ? (i)=> i.tech || '(sin técnica)'
+    : mode==='day'
+      ? (i)=> i.date || '(sin fecha)'
+      : (i)=> (i.time ? (i.time.slice(0,2)+':00') : '(sin hora)');
 
-  const w=window.open('','print'); 
-  w.document.open(); w.document.write(html); w.document.close(); 
-  w.focus(); w.print();
+  const map = {};
+  for(const i of filtered){
+    const k = keyFn(i);
+    const amt = (+i.amount||0);
+    if(!map[k]) map[k] = {key:k, count:0, total:0};
+    map[k].count += 1;
+    map[k].total += amt;
+  }
+  return Object.values(map).sort((a,b)=> b.total - a.total || String(a.key).localeCompare(String(b.key)));
 }
 
 
