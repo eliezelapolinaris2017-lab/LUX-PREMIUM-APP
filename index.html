@@ -1072,6 +1072,158 @@ function generateInvoicePDF(inv){
 /* ===== Exportaciones Cobros ===== */
 document.getElementById('btnExportInvJSON').onclick=()=>S.download(`cobros-${Date.now()}.json`,JSON.stringify(state.invoices,null,2));
 document.getElementById('btnExportInvCSV').onclick=()=>{
+  // ===== Añadido: rango de periodo =====
+function getPeriodRange(period) {
+  const now = new Date();
+  const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startYear = new Date(now.getFullYear(), 0, 1);
+
+  if (period === 'today') {
+    return { from: startDay, to: new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()+1) };
+  }
+  if (period === 'this_week') {
+    const dayOfWeek = now.getDay();
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    const startWeek = new Date(now);
+    startWeek.setDate(now.getDate() - diffToMonday);
+    startWeek.setHours(0,0,0,0);
+    const endWeek = new Date(startWeek);
+    endWeek.setDate(startWeek.getDate() + 7);
+    return { from: startWeek, to: endWeek };
+  }
+  if (period === 'this_month') {
+    return { from: startMonth, to: new Date(now.getFullYear(), now.getMonth()+1, 1) };
+  }
+  if (period === 'this_year') {
+    return { from: startYear, to: new Date(now.getFullYear()+1, 0, 1) };
+  }
+  return null;
+}
+
+// ===== Añadido: agrupar facturas considerando periodo y técnica =====
+function groupInvoicesBy(mode, opts = {}) {
+  const list = state.invoices || [];
+  const techFilter = opts.tech || '(todas)';
+  const period = opts.period || 'all';
+  const pr = getPeriodRange(period);
+
+  const map = {};
+  for (const inv of list) {
+    const invDate = new Date(inv.date);
+    if (pr) {
+      if (invDate < pr.from || invDate >= pr.to) continue;
+    }
+    if (techFilter && techFilter !== '(todas)' && inv.tech !== techFilter) continue;
+
+    let key;
+    if (mode === 'tech') {
+      key = inv.tech || '(sin técnica)';
+    } else if (mode === 'day') {
+      key = inv.date || '(sin fecha)';
+    } else if (mode === 'hour') {
+      if (inv.time) {
+        const h = inv.time.split(':')[0];
+        key = h + ':00';
+      } else {
+        key = '(sin hora)';
+      }
+    } else {
+      key = inv.tech || '(sin técnica)';
+    }
+
+    const amt = +inv.amount || 0;
+    if (!map[key]) map[key] = { key: key, total: 0, count: 0 };
+    map[key].total += amt;
+    map[key].count += 1;
+  }
+  return Object.values(map).sort((a, b) => b.total - a.total || a.key.localeCompare(b.key));
+}
+
+// ===== Añadido: exportar CSV agrupado =====
+function exportInvGroupedCSV(mode){
+  const techSel = document.getElementById('invTechFilter');
+  const periodSel = document.getElementById('invPeriodFilter');
+  const tech = techSel ? techSel.value : '(todas)';
+  const period = periodSel ? periodSel.value : 'all';
+  const data = groupInvoicesBy(mode, { tech, period });
+  const niceLabel = mode === 'tech' ? 'Técnica' :
+                     mode === 'day' ? 'Día' :
+                     'Hora';
+  const rows = [[niceLabel, 'Cantidad', 'Total ($)']];
+  data.forEach(r => {
+    rows.push([r.key, r.count, r.total.toFixed(2)]);
+  });
+  S.download(`cobros-${mode}-${tech}-${period}-${Date.now()}.csv`, S.csv(rows), 'text/csv');
+}
+
+// ===== Añadido: exportar PDF agrupado =====
+function exportInvGroupedPDF(mode){
+  const techSel = document.getElementById('invTechFilter');
+  const periodSel = document.getElementById('invPeriodFilter');
+  const tech = techSel ? techSel.value : '(todas)';
+  const period = periodSel ? periodSel.value : 'all';
+  const data = groupInvoicesBy(mode, { tech, period });
+  let sumTotal = 0, sumCount = 0;
+  data.forEach(r => { sumTotal += r.total; sumCount += r.count; });
+
+  const niceLabel = mode === 'tech' ? 'Técnica' :
+                     mode === 'day' ? 'Día' :
+                     'Hora';
+  const periodLabel = period === 'today' ? 'Hoy' :
+                      period === 'this_week' ? 'Esta semana' :
+                      period === 'this_month' ? 'Este mes' :
+                      period === 'this_year' ? 'Este año' :
+                      'Todo';
+
+  const div = document.createElement('div');
+  div.style.padding = "20px";
+  div.style.background = "#fff";
+  div.style.color = "#000";
+  div.innerHTML = `
+    <h1>Historial de Cobros — Agrupado por ${niceLabel}</h1>
+    <div> Técnica: ${tech} · Periodo: ${periodLabel} · Generado: ${new Date().toLocaleString()}</div>
+    <table border="1" style="width:100%; border-collapse:collapse; margin-top:12px;">
+      <thead>
+        <tr><th>${niceLabel}</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Total ($)</th></tr>
+      </thead>
+      <tbody>
+        ${ data.map(r => `
+          <tr>
+            <td>${r.key}</td>
+            <td style="text-align:right">${r.count}</td>
+            <td style="text-align:right">$${r.total.toFixed(2)}</td>
+          </tr>
+        `).join('') }
+      </tbody>
+      <tfoot>
+        <tr><td>TOTAL</td><td style="text-align:right">${sumCount}</td><td style="text-align:right">$${sumTotal.toFixed(2)}</td></tr>
+      </tfoot>
+    </table>
+  `;
+  document.body.appendChild(div);
+  html2pdf().set({
+    margin:10,
+    filename:`cobros-${mode}-${tech}-${period}-${Date.now()}.pdf`,
+    html2canvas:{ scale:2 },
+    jsPDF:{ unit:'mm', format:'a4', orientation:'landscape' }
+  }).from(div).save().then(()=>{ document.body.removeChild(div); });
+}
+
+// ===== Añadido: listeners para los botones nuevos =====
+if(document.getElementById('btnExportInvByTechCSV'))
+  document.getElementById('btnExportInvByTechCSV').onclick = ()=>exportInvGroupedCSV('tech');
+if(document.getElementById('btnExportInvByTechPDF'))
+  document.getElementById('btnExportInvByTechPDF').onclick = ()=>exportInvGroupedPDF('tech');
+if(document.getElementById('btnExportInvByDayCSV'))
+  document.getElementById('btnExportInvByDayCSV').onclick = ()=>exportInvGroupedCSV('day');
+if(document.getElementById('btnExportInvByDayPDF'))
+  document.getElementById('btnExportInvByDayPDF').onclick = ()=>exportInvGroupedPDF('day');
+if(document.getElementById('btnExportInvByHourCSV'))
+  document.getElementById('btnExportInvByHourCSV').onclick = ()=>exportInvGroupedCSV('hour');
+if(document.getElementById('btnExportInvByHourPDF'))
+  document.getElementById('btnExportInvByHourPDF').onclick = ()=>exportInvGroupedPDF('hour');
+
   const rows=[['Número','Fecha','Hora','Cliente','Teléfono','Servicio','Técnica','Método','Monto'],
     ...state.invoices.map(i=>[i.number||'',i.date,i.time||'',i.client,i.phone||'',i.service||'',i.tech||'',i.pay||'',(+i.amount||0)])];
   S.download(`cobros-${Date.now()}.csv`, S.csv(rows), 'text/csv');
