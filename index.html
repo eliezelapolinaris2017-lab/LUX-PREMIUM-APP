@@ -1117,43 +1117,30 @@ function getPeriodRange(period) {
 }
 
 // ===== Añadido: agrupar facturas considerando periodo y técnica =====
-function groupInvoicesBy(mode, opts = {}) {
+function groupInvoices(mode){
   const list = state.invoices || [];
-  const techFilter = opts.tech || '(todas)';
-  const period = opts.period || 'all';
-  const pr = getPeriodRange(period);
+
+  // 👇 Aplicar filtro de técnica si está seleccionado
+  const techSel = document.getElementById('invTechFilter')?.value || '(todas)';
+  const filtered = (techSel === '(todas)') ? list : list.filter(i => i.tech === techSel);
+
+  const keyFn = mode==='tech'
+    ? (i)=> i.tech || '(sin técnica)'
+    : mode==='day'
+      ? (i)=> i.date || '(sin fecha)'
+      : (i)=> (i.time ? (i.time.slice(0,2)+':00') : '(sin hora)'); // agrupar por hora
 
   const map = {};
-  for (const inv of list) {
-    const invDate = new Date(inv.date);
-    if (pr) {
-      if (invDate < pr.from || invDate >= pr.to) continue;
-    }
-    if (techFilter && techFilter !== '(todas)' && inv.tech !== techFilter) continue;
-
-    let key;
-    if (mode === 'tech') {
-      key = inv.tech || '(sin técnica)';
-    } else if (mode === 'day') {
-      key = inv.date || '(sin fecha)';
-    } else if (mode === 'hour') {
-      if (inv.time) {
-        const h = inv.time.split(':')[0];
-        key = h + ':00';
-      } else {
-        key = '(sin hora)';
-      }
-    } else {
-      key = inv.tech || '(sin técnica)';
-    }
-
-    const amt = +inv.amount || 0;
-    if (!map[key]) map[key] = { key: key, total: 0, count: 0 };
-    map[key].total += amt;
-    map[key].count += 1;
+  for(const i of filtered){
+    const k = keyFn(i);
+    const amt = (+i.amount||0);
+    if(!map[k]) map[k] = {key:k, count:0, total:0};
+    map[k].count += 1;
+    map[k].total += amt;
   }
-  return Object.values(map).sort((a, b) => b.total - a.total || a.key.localeCompare(b.key));
+  return Object.values(map).sort((a,b)=> b.total - a.total || String(a.key).localeCompare(String(b.key)));
 }
+
 
 // ===== Añadido: exportar CSV agrupado =====
 function exportInvGroupedCSV(mode){
