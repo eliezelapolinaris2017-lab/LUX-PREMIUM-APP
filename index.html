@@ -294,6 +294,31 @@ footer{opacity:.8;text-align:center;padding:2rem 0}
           <button class="btn small" id="btnExportInvJSON">💾 JSON</button>
           <button class="btn small" id="btnExportInvCSV">📄 CSV</button>
           <input type="file" id="importInvJSON" class="no-print" accept="application/json">
+          <!-- Filtro de Técnica -->
+<label style="margin-left:1rem; white-space: nowrap; align-self:center;">Técnica:</label>
+<select class="btn small" id="invTechFilter" style="margin-left:4px;">
+  <option value="(todas)">(todas)</option>
+  <!-- Se llenará dinámicamente con tus técnicas -->
+</select>
+
+<!-- Filtro de Periodo -->
+<label style="margin-left:1rem; white-space: nowrap; align-self:center;">Periodo:</label>
+<select class="btn small" id="invPeriodFilter" style="margin-left:4px;">
+  <option value="all">Todo</option>
+  <option value="today">Hoy</option>
+  <option value="this_week">Esta semana</option>
+  <option value="this_month">Este mes</option>
+  <option value="this_year">Este año</option>
+</select>
+
+<!-- Botones agrupados nuevos -->
+<button class="btn small" id="btnExportInvByTechPDF">🖨️ PDF por Técnica</button>
+<button class="btn small" id="btnExportInvByTechCSV">📄 Excel por Técnica</button>
+<button class="btn small" id="btnExportInvByDayPDF">🖨️ PDF por Día</button>
+<button class="btn small" id="btnExportInvByDayCSV">📄 Excel por Día</button>
+<button class="btn small" id="btnExportInvByHourPDF">🖨️ PDF por Hora</button>
+<button class="btn small" id="btnExportInvByHourCSV">📄 Excel por Hora</button>
+
           <!-- ===== NUEVO: Exportaciones agrupadas ===== -->
           <button class="btn small" id="btnExportInvByTechPDF">🖨️ PDF por Técnica</button>
           <button class="btn small" id="btnExportInvByTechCSV">📄 Excel por Técnica</button>
