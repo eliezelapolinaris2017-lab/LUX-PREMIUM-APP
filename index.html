@@ -5,15 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#111111">
-<title>Salon Pro — Dashboard con exportes por Técnica / Período</title>
-
-<!-- Incluir html2pdf.js para generar PDF desde HTML (cliente) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
-  integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
-  crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
+<title>Salon Pro — Dashboard</title>
 <style>
-/* ====== tu CSS original (sin cambios) ====== */
+/* ====== CSS Base / Theming ====== */
 :root{
   --bg:#0f0f12;
   --fg:#ffffff;
@@ -28,6 +22,7 @@
   --warn:#f59e0b;
   --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
 
+  /* ===== Estilo de Menú (editable desde Config) ===== */
   --menu-radius:16px;
   --menu-blur:10px;
   --menu-shadow:0 10px 30px rgba(0,0,0,.35);
@@ -80,236 +75,1455 @@ input[type="color"]{padding:.2rem;height:38px}
 .row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
 .kbd{background:#0002;border:1px solid #0003;border-radius:6px;padding:.1rem .35rem;font-size:.85rem}
 
-/* … resto de estilos que ya tenías … */
+/* ===== Menú elegante / glass ===== */
+.menu{
+  display:grid; gap:.9rem;
+  grid-template-columns:repeat(var(--menu-cols),minmax(0,1fr));
+}
+.menu .item{
+  user-select:none;cursor:grab;text-align:left;padding:1rem;
+  border-radius:var(--menu-radius);
+  background:var(--menu-card); backdrop-filter:blur(var(--menu-blur));
+  border:var(--menu-border); box-shadow:var(--menu-shadow);
+  transition:.2s transform, .2s box-shadow, .2s background;
+}
+.menu .item:hover{ transform:translateY(-2px); box-shadow:0 14px 32px rgba(0,0,0,.45); }
+.menu .item .ico{font-size:var(--menu-icon);margin-bottom:.35rem}
+.menu .item .tag{
+  display:inline-block;margin-top:.5rem;opacity:.65;font-size:.78rem;
+  background:#ffffff1a;padding:.2rem .5rem;border-radius:999px
+}
 
+/* ===== Modos de menú (no cambia el HTML) ===== */
+.menu.list{grid-template-columns:1fr}
+.menu.sidebar{position:fixed;top:56px;bottom:0;width:240px;overflow:auto;padding:10px}
+body.sidebar-left .menu.sidebar{left:0}
+body.sidebar-right .menu.sidebar{right:0}
+body.sidebar-left .container, body.sidebar-right .container{max-width:100%;margin:1rem 1rem 1rem 260px}
+body.sidebar-right .container{margin:1rem 260px 1rem 1rem}
+
+.badge{font-size:.75rem;padding:.15rem .45rem;border-radius:999px;background:#ffffff22}
 table{width:100%;border-collapse:collapse}
 th,td{padding:.55rem;border-bottom:1px solid #00000055}
 th{color:var(--muted);text-align:left}
 hr{border:none;border-top:1px solid #00000055;margin:1rem 0}
 footer{opacity:.8;text-align:center;padding:2rem 0}
 
+/* Print styles (PDF) */
 @media print{
   body{background:#fff;color:#000}
   .topbar,.btn,.no-print{display:none !important}
   .card{border:1px solid #ddd}
 }
 
-/* lo demás de CSS original … */
+/* Login */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:70vh}
+.brand-preview{display:flex;align-items:center;gap:.7rem}
 
+/* Calendar mini */
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:.25rem}
+.calendar .day{padding:.5rem;border-radius:8px;background:#0f1017;border:1px solid #00000055;text-align:center}
+.calendar .today{outline:2px solid var(--accent)}
+.tag{padding:.12rem .4rem;border-radius:8px;background:#ffffff18;font-size:.8rem}
+.scroll{max-height:260px;overflow:auto;border:1px solid #00000033;border-radius:10px}
+
+/* ===== Edición inline ===== */
+.cell-editing{outline:2px dashed var(--accent);background:#ffffff10}
+.cell-pointer{cursor:text}
+.tooltip{
+  position:absolute;pointer-events:none;transform:translate(-50%,-120%);
+  font-size:.75rem;background:#000;border:1px solid #00000055;border-radius:6px;padding:.2rem .4rem;opacity:.9
+}
 </style>
 </head>
 <body>
-  <!-- ===== tu HTML original arriba, sin cambios, hasta llegar a Historial de cobros ===== -->
-  <!-- … -->
-  
-  <section id="viewBilling" class="hidden">
-    <div class="row"><button class="btn ghost" data-back>← Regresar al menú</button></div>
+  <!-- ===== Topbar ===== -->
+  <div class="topbar no-print">
+    <img id="logoTop" class="logo" alt="logo">
+    <div class="title" id="salonName">Mi Salón</div>
+    <span class="spacer"></span>
+    <button class="btn small" id="btnDashboard">🏠 Menú</button>
+    <button class="btn small" id="btnLogout" title="Cerrar sesión">🔓 Salir</button>
+  </div>
 
-    <!-- Aquí tu parte de «Historial de cobros» con botones export JSON/CSV/PDF etc. -->
-    <div class="card">
-      <h3>Historial de cobros</h3>
-      <div class="row">
-        <button class="btn small" id="btnExportInvPDF">🖨️ PDF</button>
-        <button class="btn small" id="btnExportInvJSON">💾 JSON</button>
-        <button class="btn small" id="btnExportInvCSV">📄 CSV</button>
-        <input type="file" id="importInvJSON" class="no-print" accept="application/json">
-        
-        <!-- NUEVOS controles para selección de técnica + periodo -->
-        <label style="margin-left:1rem; white-space: nowrap; align-self:center;">Técnica:</label>
-        <select class="btn small" id="invTechFilter" style="margin-left:4px;">
-          <option value="(todas)">(todas)</option>
-          <!-- se llenará dinámicamente con tus técnicas -->
-        </select>
-
-        <label style="margin-left:1rem; white-space: nowrap; align-self:center;">Periodo:</label>
-        <select class="btn small" id="invPeriodFilter" style="margin-left:4px;">
-          <option value="all">Todo</option>
-          <option value="today">Hoy</option>
-          <option value="this_week">Esta semana</option>
-          <option value="this_month">Este mes</option>
-          <option value="this_year">Este año</option>
-        </select>
-
-        <!-- Botones nuevos de export agrupado -->
-        <button class="btn small" id="btnExportInvByTechPDF">🖨️ PDF por Técnica</button>
-        <button class="btn small" id="btnExportInvByTechCSV">📄 Excel por Técnica</button>
-        <button class="btn small" id="btnExportInvByDayPDF">🖨️ PDF por Día</button>
-        <button class="btn small" id="btnExportInvByDayCSV">📄 Excel por Día</button>
-        <button class="btn small" id="btnExportInvByHourPDF">🖨️ PDF por Hora</button>
-        <button class="btn small" id="btnExportInvByHourCSV">📄 Excel por Hora</button>
-
+  <div class="container">
+    <!-- ===== Login ===== -->
+    <section id="viewLogin" class="login-wrap">
+      <div class="card" style="min-width:320px;max-width:420px">
+        <div class="brand-preview">
+          <img id="logoLogin" class="logo" alt="logo">
+          <div>
+            <div style="font-weight:800" id="salonNameLogin">Mi Salón</div>
+            <small style="opacity:.7">Acceso</small>
+          </div>
+        </div>
+        <hr>
+        <label>Usuario</label>
+        <input id="loginUser" placeholder="usuario">
+        <label>Contraseña</label>
+        <input id="loginPass" type="password" placeholder="••••••">
+        <div class="row" style="margin-top:.7rem">
+          <button class="btn ok" id="btnDoLogin">Ingresar</button>
+          <span class="kbd">Admin demo: admin / admin</span>
+          <span class="kbd">Usuario demo: user / user</span>
+        </div>
       </div>
-      <table id="tblInv"></table>
-    </div>
+    </section>
 
-  </section>
+    <!-- ===== Menú principal ===== -->
+    <section id="viewMenu" class="hidden">
+      <div class="row">
+        <div class="card" style="flex:1">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <h2 style="margin:.2rem 0">Menú</h2>
+            <span class="badge">Arrastra para reordenar</span>
+          </div>
+          <div id="menuList" class="menu no-print"></div>
+        </div>
+      </div>
+    </section>
 
-  <!-- ===== resto de tus secciones originales ===== -->
+    <!-- ===== Agenda ===== -->
+    <section id="viewAgenda" class="hidden">
+      <div class="row"><button class="btn ghost" data-back>← Regresar al menú</button></div>
+      <div class="grid two">
+        <div class="card">
+          <h3>Crear / Editar cita</h3>
+          <div class="grid two">
+            <div><label>Fecha</label><input type="date" id="apDate"></div>
+            <div><label>Hora</label><input type="time" id="apTime"></div>
+            <div><label>Cliente</label><input id="apClient" placeholder="Nombre y Apellido"></div>
+            <div><label>Teléfono</label><input id="apPhone" placeholder="+1..."></div>
+            <div>
+              <label>Servicio</label>
+              <input id="apService" list="servicesList" placeholder="Corte, Color...">
+              <datalist id="servicesList"></datalist>
+            </div>
+            <div>
+              <label>Técnica</label>
+              <select id="apTech"></select>
+            </div>
+          </div>
+          <div class="row" style="margin-top:.6rem">
+            <button class="btn ok" id="btnSaveAp">💾 Guardar</button>
+            <button class="btn warn" id="btnResched" title="Reagendar seleccionada">🔄 Reagendar</button>
+            <button class="btn danger" id="btnNoShow">🚫 No-show</button>
+            <button class="btn" id="btnGCal">📅 Google Calendar</button>
+            <button class="btn" id="btnWhats">🟢 WhatsApp</button>
+          </div>
+          <small class="muted">Bloquea duplicados: misma persona + hora + día + técnica.</small>
+        </div>
+        <div class="card">
+          <h3>Calendario & Disponibilidad</h3>
+          <div class="row">
+            <input type="month" id="calMonth">
+            <input type="date" id="filterDate">
+            <input placeholder="Buscar por cliente" id="filterClient">
+          </div>
+          <div id="calendar" class="calendar" style="margin-top:.6rem"></div>
+          <h4>Slots disponibles</h4>
+          <div id="slots" class="scroll"></div>
+        </div>
+      </div>
 
-  <footer id="appFooter" class="no-print">© Mi Salón</footer>
-</div>
+      <div class="card">
+        <h3>Citas (hoy y futuras)</h3>
+        <div class="row">
+          <button class="btn small" id="btnExportApPDF">🖨️ PDF</button>
+          <button class="btn small" id="btnExportApCSV">📄 Excel (CSV)</button>
+          <button class="btn small" id="btnExportApJSON">💾 Exportar JSON</button>
+          <input type="file" id="importApJSON" class="no-print" accept="application/json">
+        </div>
+        <table id="tblAp"></table>
+      </div>
+    </section>
+
+    <!-- ===== Cobros / Facturas ===== -->
+    <section id="viewBilling" class="hidden">
+      <div class="row"><button class="btn ghost" data-back>← Regresar al menú</button></div>
+      <div class="grid two">
+        <div class="card">
+          <h3>Nuevo cobro / factura</h3>
+          <div class="grid two">
+            <div><label>Fecha</label><input type="date" id="invDate"></div>
+            <div><label>Hora</label><input type="time" id="invTime"></div>
+            <div><label>Cliente</label><input id="invClient"></div>
+            <div><label>Teléfono</label><input id="invPhone"></div>
+            <div>
+              <label>Servicio</label>
+              <input id="invService" list="servicesList">
+            </div>
+            <div>
+              <label>Técnica</label>
+              <select id="invTech"></select>
+            </div>
+            <div>
+              <label>Método de pago</label>
+              <select id="invPay">
+                <option>ATH Móvil</option>
+                <option>Cash</option>
+                <option>Tarjeta</option>
+              </select>
+            </div>
+            <div>
+              <label>Monto</label><input id="invAmount" type="number" step="0.01">
+            </div>
+          </div>
+          <div class="row" style="margin-top:.6rem">
+            <button class="btn ok" id="btnSaveInv">💾 Guardar & Enviar a Hoja</button>
+            <button class="btn" id="btnInvoicePDF">🖨️ PDF</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Hoja de Cuadre (Google Sheets)</h3>
+          <p>URL configurada:</p>
+          <code id="sheetUrlCode" style="word-break:break-all"></code>
+          <div class="row" style="margin-top:.5rem">
+            <button class="btn small" id="btnOpenSheet">Abrir Hoja</button>
+            <button class="btn small" id="btnTestWebhook">Probar Webhook</button>
+          </div>
+          <small>Se hace <i>append</i> vía webhook Apps Script al guardar factura.</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Historial de cobros</h3>
+        <div class="row">
+          <button class="btn small" id="btnExportInvPDF">🖨️ PDF</button>
+          <button class="btn small" id="btnExportInvJSON">💾 JSON</button>
+          <button class="btn small" id="btnExportInvCSV">📄 CSV</button>
+          <input type="file" id="importInvJSON" class="no-print" accept="application/json">
+          <!-- ===== NUEVO: Exportaciones agrupadas ===== -->
+          <button class="btn small" id="btnExportInvByTechPDF">🖨️ PDF por Técnica</button>
+          <button class="btn small" id="btnExportInvByTechCSV">📄 Excel por Técnica</button>
+          <button class="btn small" id="btnExportInvByDayPDF">🖨️ PDF por Día</button>
+          <button class="btn small" id="btnExportInvByDayCSV">📄 Excel por Día</button>
+          <button class="btn small" id="btnExportInvByHourPDF">🖨️ PDF por Hora</button>
+          <button class="btn small" id="btnExportInvByHourCSV">📄 Excel por Hora</button>
+        </div>
+        <table id="tblInv"></table>
+      </div>
+    </section>
+
+    <!-- ===== Rendimiento (Analytics) ===== -->
+    <section id="viewAnalytics" class="hidden">
+      <div class="row"><button class="btn ghost" data-back>← Regresar al menú</button></div>
+      <div class="grid two">
+        <div class="card">
+          <h3>Indicadores</h3>
+          <div class="row">
+            <select id="rangeKPI">
+              <option value="day">Diario</option>
+              <option value="week">Semanal</option>
+              <option value="month" selected>Mensual</option>
+            </select>
+            <button class="btn small" id="btnExportAnalPDF">🖨️ PDF</button>
+            <!-- CSV se inyecta dinámicamente -->
+          </div>
+          <div id="kpis" class="grid three"></div>
+        </div>
+        <div class="card">
+          <h3>Gráficas</h3>
+          <canvas id="chart1" height="160"></canvas>
+          <canvas id="chart2" height="160" style="margin-top:1rem"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Historial</h3>
+        <div class="row">
+          <button class="btn small" id="btnExportLogsPDF">🖨️ PDF</button>
+          <!-- CSV se inyecta dinámicamente -->
+        </div>
+        <table id="tblLogs"></table>
+      </div>
+    </section>
+
+    <!-- ===== Configuración ===== -->
+    <section id="viewConfig" class="hidden">
+      <div class="row"><button class="btn ghost" data-back>← Regresar al menú</button></div>
+      <div class="grid two">
+        <div class="card">
+          <h3>Branding & Estilo</h3>
+          <div class="grid two">
+            <div><label>Nombre del salón</label><input id="cfgSalonName" placeholder="Mi Salón"></div>
+            <div><label>Fuente</label><input id="cfgFont" placeholder="Inter, system-ui"></div>
+            <div><label>Color fondo</label><input type="color" id="cfgBg"></div>
+            <div><label>Color topbar</label><input type="color" id="cfgTopbar"></div>
+            <div><label>Color botones</label><input type="color" id="cfgBtn"></div>
+            <div><label>Color acento</label><input type="color" id="cfgAccent"></div>
+          </div>
+          <label>Imagen de fondo (PNG transparente opcional)</label>
+          <input type="file" id="cfgBgImg" accept="image/*">
+          <label>Logo</label>
+          <input type="file" id="cfgLogo" accept="image/*">
+          <label>Footer</label><input id="cfgFooter" placeholder="© Mi Salón">
+
+          <hr>
+          <h3>Datos del negocio</h3>
+          <div class="grid two">
+            <div><label>Nombre comercial</label><input id="bizName" placeholder="Agenda Conmigo"></div>
+            <div><label>RNC / Tax ID</label><input id="bizTax" placeholder="EIN/RNC"></div>
+            <div><label>Teléfono</label><input id="bizPhone" placeholder="+1 787 ..."></div>
+            <div><label>Email</label><input id="bizEmail" placeholder="hola@tu-negocio.com"></div>
+            <div><label>Dirección</label><input id="bizAddress" placeholder="Calle, ciudad, país"></div>
+            <div><label>Website</label><input id="bizWeb" placeholder="https://..."></div>
+          </div>
+
+          <hr>
+          <h3>Facturación</h3>
+          <div class="grid two">
+            <div><label>Prefijo factura</label><input id="invPrefix" placeholder="INV-"></div>
+            <div><label>Próximo número</label><input id="invNext" type="number" min="1"></div>
+            <div class="grid two" style="grid-column:1/-1">
+              <div><label>Título de recibo</label><input id="invTitle" placeholder="Factura / Recibo"></div>
+              <div><label>Pie de página</label><input id="invFooter" placeholder="Gracias por su preferencia."></div>
+            </div>
+          </div>
+
+          <hr>
+          <h3>Horario de servicio</h3>
+          <table id="tblHours"></table>
+
+          <hr>
+          <h3>Estilo del menú</h3>
+          <div class="grid two">
+            <div><label>Radios (px)</label><input id="msRadius" type="number" min="8" max="32"></div>
+            <div><label>Blur (px)</label><input id="msBlur" type="number" min="0" max="30"></div>
+            <div><label>Sombra (0–1)</label><input id="msShadow" type="number" step="0.05" min="0" max="1"></div>
+            <div><label>Columnas</label><input id="msCols" type="number" min="1" max="4"></div>
+            <div><label>Fondo tarjeta (rgba)</label><input id="msCard" placeholder="rgba(255,255,255,.04)"></div>
+            <div><label>Borde (CSS)</label><input id="msBorder" placeholder="1px solid rgba(255,255,255,.10)"></div>
+            <div><label>Tamaño de ícono (px)</label><input id="msIcon" type="number" min="16" max="36"></div>
+            <div><label>Intervalo de agenda (min)</label><input id="cfgApptStep" type="number" min="5" max="120" step="5" placeholder="30"></div>
+            <div>
+              <label>Layout del menú</label>
+              <select id="msLayout">
+                <option value="grid" selected>Grid (actual)</option>
+                <option value="list">Lista</option>
+                <option value="sidebar-left">Panel izquierdo</option>
+                <option value="sidebar-right">Panel derecho</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:.6rem">
+            <button class="btn ok" id="btnSaveTheme">Guardar estilo</button>
+            <button class="btn" id="btnExportCfg">Exportar Config JSON</button>
+            <input type="file" id="importCfg" accept="application/json">
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Técnicas / Estilistas</h3>
+          <div class="row">
+            <input id="techNew" placeholder="Agregar técnica...">
+            <button class="btn small" id="btnAddTech">Agregar</button>
+          </div>
+          <ul id="techList"></ul>
+          <hr>
+          <h3>Servicios & Precios (CRUD)</h3>
+          <div class="row">
+            <input id="srvName" placeholder="Servicio">
+            <input id="srvPrice" type="number" step="0.01" placeholder="Precio">
+            <button class="btn small" id="btnAddSrv">Agregar</button>
+          </div>
+          <table id="tblSrv"></table>
+          <hr>
+          <h3>Orden del menú (drag & drop)</h3>
+          <div id="menuOrder" class="menu"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Usuarios & permisos</h3>
+        <div class="grid two">
+          <div>
+            <h4>Crear usuario</h4>
+            <input id="uUser" placeholder="usuario">
+            <input id="uPass" type="password" placeholder="contraseña">
+            <select id="uRole">
+              <option>admin</option>
+              <option>user</option>
+            </select>
+            <button class="btn small" id="btnAddUser">Agregar</button>
+          </div>
+          <div>
+            <h4>Listado</h4>
+            <table id="tblUsers"></table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Backups ===== -->
+    <section id="viewBackups" class="hidden">
+      <div class="row"><button class="btn ghost" data-back>← Regresar al menú</button></div>
+      <div class="card">
+        <h3>Backups & restauración</h3>
+        <div class="grid two">
+          <div>
+            <h4>Citas</h4>
+            <div class="row">
+              <button class="btn small" data-backup="appointments:daily">Diario</button>
+              <button class="btn small" data-backup="appointments:weekly">Semanal</button>
+              <button class="btn small" data-backup="appointments:monthly">Mensual</button>
+              <button class="btn small" data-backup="appointments:yearly">Anual</button>
+            </div>
+          </div>
+          <div>
+            <h4>Cobros & No-shows</h4>
+            <div class="row">
+              <button class="btn small" data-backup="billing:daily">Diario</button>
+              <button class="btn small" data-backup="billing:weekly">Semanal</button>
+              <button class="btn small" data-backup="billing:monthly">Mensual</button>
+              <button class="btn small" data-backup="billing:yearly">Anual</button>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:.6rem">
+          <button class="btn" id="btnSchedBackups">Programar frecuencias</button>
+          <button class="btn" id="btnExportAll">Exportar TODO (ZIP-like JSON)</button>
+          <input type="file" id="importAll" accept="application/json">
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Footer ===== -->
+    <footer id="appFooter" class="no-print">© Mi Salón</footer>
+  </div>
 
 <script>
-// ===== utilidades y estado, lo que ya tenías sin cambios =====
-// (toda la parte de S, state, renderAgenda, renderBilling, login/logout, etc.)
+/* ====== Utilidades y estado ====== */
+const S = {
+  key:k=>`salon.${k}`,
+  load:(k,def)=>{try{return JSON.parse(localStorage.getItem(S.key(k))) ?? def}catch{return def}},
+  save:(k,v)=>localStorage.setItem(S.key(k),JSON.stringify(v)),
+  uid:()=>Math.random().toString(36).slice(2),
+  today:()=>new Date().toISOString().slice(0,10),
+  nowTime:()=>new Date().toTimeString().slice(0,5),
+  pad:n=>n.toString().padStart(2,'0'),
+  toLocalDateTimeStr:(d)=>`${d.getFullYear()}-${S.pad(d.getMonth()+1)}-${S.pad(d.getDate())} ${S.pad(d.getHours())}:${S.pad(d.getMinutes())}`,
+  csv:(rows)=>rows.map(r=>r.map(x=>`"${(x??'').toString().replace(/"/g,'""')}"`).join(',')).join('\n'),
+  download:(name,content,type='application/json')=>{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();URL.revokeObjectURL(a.href);
+  },
+  notify:(msg)=>{console.log(msg); alert(msg)},
+  isSameDay:(a,b)=>a.toISOString().slice(0,10)===b.toISOString().slice(0,10),
+  addDays:(d, n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x}
+};
 
-/* ------------------- AÑADIR: funciones para agrupar + exportar por Técnica / Día / Hora con filtro de Período y Técnica ------------------- */
+// Estado inicial
+const state = {
+  session: S.load('session', null),
+  cfg: S.load('cfg',{
+    salonName:'Mi Salón',
+    font:'Inter, system-ui',
+    colors:{bg:'#0f0f12',topbar:'#15151b',btn:'#26283a',accent:'#93c5fd'},
+    footer:'© Mi Salón',
+    logo:null, bgImage:null,
+    sheetUrl:'', webhookUrl:'',
+    chartColors:{
+      bars:'#ffffff', grid:'#888888', tech:'#60a5fa', service:'#34d399', pay:'#f59e0b', appt:'#10b981', noShow:'#ef4444'
+    },
+    business:{ name:'Agenda Conmigo', taxId:'', phone:'', email:'', address:'', website:'' },
+    invoice:{ prefix:'INV-', next:1, title:'Factura / Recibo', footer:'Gracias por su preferencia.' },
+    menuStyle:{ radius:16, blur:10, shadow:.35, cols:2, card:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.10)', icon:22, layout:'grid' },
+    hours:{
+      sun:{open:false,from:"00:00",to:"00:00"},
+      mon:{open:true ,from:"09:00",to:"18:00"},
+      tue:{open:true ,from:"09:00",to:"18:00"},
+      wed:{open:true ,from:"09:00",to:"18:00"},
+      thu:{open:true ,from:"09:00",to:"18:00"},
+      fri:{open:true ,from:"09:00",to:"18:00"},
+      sat:{open:true ,from:"09:00",to:"14:00"}
+    },
+    apptStepMinutes:30  // <<< NUEVO
+  }),
+  users: S.load('users',[
+    {user:'admin',pass:'admin',role:'admin'},
+    {user:'user',pass:'user',role:'user'}
+  ]),
+  menu: S.load('menu',[
+    {id:'Agenda', ico:'📅', view:'viewAgenda', role:'user'},
+    {id:'Cobros/Facturas', ico:'💳', view:'viewBilling', role:'user'},
+    {id:'Rendimiento', ico:'📈', view:'viewAnalytics', role:'admin'},
+    {id:'Configuración', ico:'⚙️', view:'viewConfig', role:'admin'},
+    {id:'Backups', ico:'🗂️', view:'viewBackups', role:'admin'}
+  ]),
+  techs: S.load('techs',['General']),
+  services: S.load('services',[
+    {name:'Corte', price:25},{name:'Color', price:60},{name:'Blowout', price:30}
+  ]),
+  appointments: S.load('appointments',[]),
+  invoices: S.load('invoices',[]),
+  noshows: S.load('noshows',[]),
+  logs: S.load('logs',[]),
+  lastInvId: S.load('lastInvId', null),
+  chartMode: S.load('chartMode','tech')
+};
 
-// Helper para rango de período
-function getPeriodRange(period){
-  const now = new Date();
-  const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startYear = new Date(now.getFullYear(), 0, 1);
-
-  if(period === 'today'){
-    return { from: startDay, to: new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()+1) };
-  }
-  if(period === 'this_week'){
-    const dayOfWeek = now.getDay(); // Domingo=0, Lunes=1, etc
-    const diffToMonday = (dayOfWeek + 6) % 7;
-    const startWeek = new Date(now);
-    startWeek.setDate(now.getDate() - diffToMonday);
-    startWeek.setHours(0,0,0,0);
-    const endWeek = new Date(startWeek);
-    endWeek.setDate(startWeek.getDate() + 7);
-    return { from: startWeek, to: endWeek };
-  }
-  if(period === 'this_month'){
-    return { from: startMonth, to: new Date(now.getFullYear(), now.getMonth()+1, 1) };
-  }
-  if(period === 'this_year'){
-    return { from: startYear, to: new Date(now.getFullYear()+1, 0, 1) };
-  }
-  return null; // para “all”
+function persistAll(){
+  ['cfg','users','menu','techs','services','appointments','invoices','noshows','logs','lastInvId','chartMode'].forEach(k=>S.save(k,state[k]));
 }
 
-// Función modificada para agrupar facturas según modo + filtro
-function groupInvoicesBy(mode, opts = {}){
+/* ====== Theming / Branding ====== */
+function applyTheme(){
+  document.documentElement.style.setProperty('--bg', state.cfg.colors.bg);
+  document.documentElement.style.setProperty('--topbar', state.cfg.colors.topbar);
+  document.documentElement.style.setProperty('--btn', state.cfg.colors.btn);
+  document.documentElement.style.setProperty('--accent', state.cfg.colors.accent);
+  document.body.style.fontFamily = state.cfg.font;
+
+  // Estilo de menú (desde Config)
+  const ms = state.cfg.menuStyle;
+  document.documentElement.style.setProperty('--menu-radius', ms.radius+'px');
+  document.documentElement.style.setProperty('--menu-blur', ms.blur+'px');
+  document.documentElement.style.setProperty('--menu-shadow', `0 10px 30px rgba(0,0,0,${ms.shadow})`);
+  document.documentElement.style.setProperty('--menu-card', ms.card);
+  document.documentElement.style.setProperty('--menu-border', ms.border);
+  document.documentElement.style.setProperty('--menu-cols', ms.cols);
+  document.documentElement.style.setProperty('--menu-icon', ms.icon+'px');
+
+  // Layout de menú
+  document.body.classList.remove('sidebar-left','sidebar-right');
+  const menuEl=document.getElementById('menuList');
+  menuEl.classList.remove('list','sidebar');
+  if(ms.layout==='list'){ menuEl.classList.add('list'); }
+  if(ms.layout==='sidebar-left'||ms.layout==='sidebar-right'){
+    menuEl.classList.add('sidebar');
+    document.body.classList.add(ms.layout==='sidebar-left'?'sidebar-left':'sidebar-right');
+  }
+
+  // Branding
+  document.getElementById('appFooter').textContent = state.cfg.footer || '';
+  const brand = state.cfg.business?.name || state.cfg.salonName;
+  document.getElementById('salonName').textContent = brand;
+  document.getElementById('salonNameLogin').textContent = brand;
+  if(state.cfg.bgImage) document.body.style.backgroundImage = `url(${state.cfg.bgImage})`; else document.body.style.backgroundImage='none';
+  const logos = document.querySelectorAll('#logoTop,#logoLogin');
+  logos.forEach(el=>{ if(state.cfg.logo){el.src=state.cfg.logo}else{el.removeAttribute('src')}});
+  document.getElementById('sheetUrlCode').textContent = state.cfg.sheetUrl || '(no configurado)';
+}
+
+/* ====== Router simple ====== */
+const views = ['viewLogin','viewMenu','viewAgenda','viewBilling','viewAnalytics','viewConfig','viewBackups'];
+function show(view){
+  views.forEach(v=>document.getElementById(v).classList.add('hidden'));
+  document.getElementById(view).classList.remove('hidden');
+}
+function toMenu(){ buildMenu(); show('viewMenu'); }
+
+/* ====== Login & permisos ====== */
+function login(u,p){
+  const found = state.users.find(x=>x.user===u && x.pass===p);
+  if(!found) return S.notify('Usuario o contraseña incorrectos');
+  state.session = {user:found.user, role:found.role, ts:Date.now()};
+  S.save('session',state.session);
+  log('login',`${found.user}`);
+  applyRoleVisibility();
+  toMenu();
+}
+function logout(){ state.session=null; S.save('session',null); show('viewLogin'); }
+
+function applyRoleVisibility(){
+  const role = state.session?.role || 'user';
+  const restricted = ['viewAnalytics','viewConfig','viewBackups'];
+  const current = views.find(v=>!document.getElementById(v).classList.contains('hidden'));
+  if(role!=='admin' && restricted.includes(current)) toMenu();
+}
+
+/* ====== Menú con drag & drop ====== */
+function buildMenu(){
+  const ml=document.getElementById('menuList'); ml.innerHTML='';
+  const role=state.session?.role||'user';
+  state.menu.filter(m=>role==='admin'||m.role!=='admin').forEach(m=>{
+    const el=document.createElement('div');
+    el.className='item'; el.draggable=true; el.dataset.view=m.view;
+    el.innerHTML=`<div class="ico">${m.ico}</div><div style="font-weight:700">${m.id}</div><div class="tag">${m.view}</div>`;
+    el.addEventListener('click',()=>{ show(m.view);
+      if(m.view==='viewAgenda') renderAgenda();
+      if(m.view==='viewBilling') renderBilling();
+      if(m.view==='viewAnalytics') renderAnalytics();
+      if(m.view==='viewConfig') renderConfig();
+      if(m.view==='viewBackups') renderBackups();
+      applyRoleVisibility();
+    });
+    el.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',m.view));
+    ml.appendChild(el);
+  });
+  // Área de orden en Config
+  const mo=document.getElementById('menuOrder'); if(mo){ mo.innerHTML='';
+    state.menu.forEach(m=>{
+      const li=document.createElement('div'); li.className='item'; li.draggable=true; li.dataset.view=m.view; li.innerHTML=`<div class="ico">${m.ico}</div><div>${m.id}</div>`;
+      li.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',m.view));
+      li.addEventListener('dragover',e=>e.preventDefault());
+      li.addEventListener('drop',e=>{
+        e.preventDefault();
+        const v=e.dataTransfer.getData('text/plain');
+        const from=state.menu.findIndex(x=>x.view===v);
+        const to=state.menu.findIndex(x=>x.view===m.view);
+        const [moved]=state.menu.splice(from,1);
+        state.menu.splice(to,0,moved);
+        persistAll(); buildMenu();
+      });
+      mo.appendChild(li);
+    });
+  }
+}
+
+/* ====== Servicios / Técnicas ====== */
+function refreshTechs(){
+  const selAp=document.getElementById('apTech'), selInv=document.getElementById('invTech');
+  selAp.innerHTML= state.techs.map(t=>`<option>${t}</option>`).join('');
+  selInv.innerHTML= selAp.innerHTML;
+  const ul=document.getElementById('techList'); if(ul){ ul.innerHTML='';
+    state.techs.forEach((t,i)=>{
+      const li=document.createElement('li'); li.textContent=t+' ';
+      const b=document.createElement('button'); b.className='btn small danger'; b.textContent='Eliminar';
+      b.onclick=()=>{ state.techs.splice(i,1); persistAll(); refreshTechs(); };
+      li.appendChild(b); ul.appendChild(li);
+    });
+  }
+}
+function refreshServices(){
+  const dl=document.getElementById('servicesList'); dl.innerHTML='';
+  state.services.forEach(s=>{ const o=document.createElement('option'); o.value=s.name; dl.appendChild(o); });
+  const tbl=document.getElementById('tblSrv'); if(tbl){
+    tbl.innerHTML='<tr><th>Servicio</th><th>Precio</th><th></th></tr>'+
+      state.services.map((s,i)=>`<tr><td>${s.name}</td><td>$${(+s.price).toFixed(2)}</td><td><button class="btn small" onclick="delSrv(${i})">Eliminar</button></td></tr>`).join('');
+  }
+}
+function delSrv(i){ state.services.splice(i,1); persistAll(); refreshServices(); }
+
+/* ====== Horario helpers ====== */
+const DKEY=['sun','mon','tue','wed','thu','fri','sat'];
+const DNAME=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function hoursFor(dateStr){
+  const d=new Date(dateStr); const key=DKEY[d.getDay()];
+  return state.cfg.hours?.[key] || {open:true,from:'09:00',to:'18:00'};
+}
+
+/* ====== Agenda ====== */
+function renderAgenda(){
+  document.getElementById('apDate').value = S.today();
+  const h = hoursFor(S.today());
+  document.getElementById('apTime').value = h.open ? h.from : '10:00';
+  document.getElementById('filterDate').value = S.today();
+  // asegurar botón CSV existe
+  if(!document.getElementById('btnExportApCSV')){
+    const btn=document.createElement('button'); btn.id='btnExportApCSV'; btn.className='btn small'; btn.textContent='📄 Excel (CSV)';
+    document.getElementById('btnExportApPDF').after(btn);
+    btn.onclick=exportAppointmentsCSV;
+  }
+  renderCalendar(); renderApTable(); renderSlots();
+}
+function renderCalendar(){
+  const cal=document.getElementById('calendar'); cal.innerHTML='';
+  const m=document.getElementById('calMonth').value || new Date().toISOString().slice(0,7);
+  const [y,mm]=m.split('-').map(n=>+n);
+  const days=new Date(y,mm,0).getDate();
+  for(let d=1; d<=days; d++){
+    const date=new Date(y,mm-1,d);
+    const el=document.createElement('div'); el.className='day';
+    if(S.isSameDay(date,new Date())) el.classList.add('today');
+    const has=state.appointments.some(a=>a.date===date.toISOString().slice(0,10));
+    el.innerHTML=`<div style="font-weight:700">${d}</div><div>${has?'<span class="badge">citas</span>':''}</div>`;
+    el.onclick=()=>{ document.getElementById('filterDate').value=date.toISOString().slice(0,10); renderApTable(); renderSlots(); };
+    cal.appendChild(el);
+  }
+}
+function isDuplicateAp({date,time,client,tech}){
+  return state.appointments.some(a=>a.date===date && a.time===time && a.client.trim().toLowerCase()===client.trim().toLowerCase() && a.tech===tech);
+}
+function saveAppointment(editId=null){
+  const date=apDate.value, time=apTime.value, client=apClient.value, phone=apPhone.value, service=apService.value, tech=apTech.value;
+  if(!date||!time||!client) return S.notify('Fecha, hora y cliente son obligatorios.');
+  if(!editId && isDuplicateAp({date,time,client,tech})) return S.notify('⚠️ Cita duplicada: misma persona, hora, día y técnica.');
+  // valida horario
+  const H=hoursFor(date);
+  if(!H.open || time<H.from || time>=H.to) return S.notify(`Fuera del horario (${H.open?H.from+'–'+H.to:'CERRADO'})`);
+  if(editId){
+    const ap=state.appointments.find(a=>a.id===editId); if(!ap) return;
+    ap._history=ap._history||[]; ap._history.push({date:ap.date,time:ap.time,ts:Date.now()});
+    ap.date=date; ap.time=time; ap.client=client; ap.phone=phone; ap.service=service; ap.tech=tech;
+    log('reagendar',`${client} ${ap._history.at(-1).date}→${date} ${time}`);
+  }else{
+    const id=S.uid();
+    state.appointments.push({id,date,time,client,phone,service,tech, created:Date.now(), status:'ok'});
+    scheduleReminder({id,date,time,client,phone});
+    log('cita',`${client} ${date} ${time}`);
+  }
+  persistAll(); renderApTable(); renderSlots(); renderCalendar();
+}
+let currentEdit=null;
+document.getElementById('btnSaveAp').onclick=()=>saveAppointment(currentEdit);
+document.getElementById('btnResched').onclick=()=>{
+  const sel=document.querySelector('#tblAp input[type=radio]:checked'); if(!sel) return S.notify('Seleccione una cita');
+  currentEdit=sel.value; saveAppointment(currentEdit); currentEdit=null;
+};
+document.getElementById('btnNoShow').onclick=()=>{
+  const sel=document.querySelector('#tblAp input[type=radio]:checked'); if(!sel) return S.notify('Seleccione una cita');
+  const ap=state.appointments.find(a=>a.id===sel.value); ap.status='no-show';
+  state.noshows.push({...ap, nsTs:Date.now()});
+  log('no-show',`${ap.client} ${ap.date} ${ap.time}`);
+  persistAll(); renderApTable();
+};
+
+/* === Slots con intervalo editable === */
+function renderSlots(){
+  const date = document.getElementById('filterDate').value || S.today();
+  const H = hoursFor(date);
+  const step = Math.max(5, Math.min(120, +state.cfg.apptStepMinutes||30)); // minutos
+  const slotsEl = document.getElementById('slots'); slotsEl.innerHTML='';
+  if(!H.open){ slotsEl.innerHTML='<div class="badge">Cerrado</div>'; return; }
+
+  const booked = state.appointments.filter(a=>a.date===date).map(a=>a.time);
+  const open=[];
+  const [fh,fm]=H.from.split(':').map(Number);
+  const [th,tm]=H.to.split(':').map(Number);
+  const start=fh*60+fm, end=th*60+tm; // exclusivo end
+  for(let m=start; m<end; m+=step){
+    const h=Math.floor(m/60), mm=m%60;
+    const t=`${S.pad(h)}:${S.pad(mm)}`;
+    if(!booked.includes(t)) open.push(t);
+  }
+  slotsEl.innerHTML = open.length
+    ? open.map(t=>`<button class="btn small" onclick="apTime.value='${t}';apDate.value='${date}'">${t}</button>`).join(' ')
+    : '<div class="badge">Sin disponibilidad</div>';
+}
+
+function renderApTable(){
+  const d=document.getElementById('filterDate').value;
+  const c=document.getElementById('filterClient').value?.toLowerCase();
+  let rows = state.appointments.filter(a=>!d||a.date===d);
+  if(c) rows = rows.filter(a=>a.client.toLowerCase().includes(c));
+  rows.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  const tbl=document.getElementById('tblAp');
+  tbl.innerHTML='<tr><th></th><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Técnica</th><th>Estatus</th></tr>'+
+    rows.map(a=>`<tr data-id="${a.id}">
+      <td><input type="radio" name="selAp" value="${a.id}"></td>
+      <td class="ap-cell" data-f="date">${a.date}</td>
+      <td class="ap-cell" data-f="time">${a.time}</td>
+      <td class="ap-cell" data-f="client">${a.client}</td>
+      <td class="ap-cell" data-f="phone">${a.phone||''}</td>
+      <td class="ap-cell" data-f="service">${a.service||''}</td>
+      <td class="ap-cell" data-f="tech">${a.tech||''}</td>
+      <td>${a.status==='no-show'?'<span class="badge">no-show</span>':'✅'}</td>
+    </tr>`).join('');
+  enableApInlineEditing();
+}
+
+// Inline edit en Citas (incluye HORA editable)
+function enableApInlineEditing(){
+  const tbl=document.getElementById('tblAp');
+  let editing=null;
+  function finish(td, commit){
+    if(!editing) return;
+    const tr = td.closest('tr');
+    const id = tr.dataset.id;
+    const ap = state.appointments.find(a=>a.id===id);
+    const input = td.querySelector('input');
+    const val = input.value.trim();
+    td.classList.remove('cell-editing');
+    td.textContent = val;
+    if(commit){
+      const f=td.dataset.f;
+      if(f==='time'){
+        const H=hoursFor(ap.date);
+        if(!H.open || val<H.from || val>=H.to) { S.notify(`Fuera del horario (${H.open?H.from+'–'+H.to:'CERRADO'})`); td.textContent=ap.time; return; }
+      }
+      ap[td.dataset.f]=val;
+      persistAll(); renderSlots(); log('edit-cita', `${ap.client} ${td.dataset.f} -> ${val}`);
+    }
+    editing=null;
+  }
+  tbl.addEventListener('dblclick', e=>{
+    const td=e.target.closest('.ap-cell'); if(!td) return;
+    const f=td.dataset.f;
+    const cur=td.textContent||'';
+    td.classList.add('cell-editing');
+    const type=(f==='date'?'date':(f==='time'?'time':'text'));
+    td.innerHTML=`<input type="${type}" value="${cur}" style="width:100%;background:transparent;border:none;outline:none;color:var(--fg)">`;
+    const input=td.querySelector('input'); input.focus(); input.select();
+    editing=td;
+  });
+  tbl.addEventListener('keydown', e=>{
+    if(!editing) return;
+    if(e.key==='Enter'){ e.preventDefault(); finish(editing,true); }
+    if(e.key==='Escape'){ e.preventDefault(); finish(editing,false); }
+  });
+  document.addEventListener('click', e=>{
+    if(!editing) return;
+    if(!editing.contains(e.target)) finish(editing,true);
+  });
+}
+
+// Export Agenda a CSV y PDF tabla compacta
+function exportAppointmentsCSV(){
+  const rows=[['Fecha','Hora','Cliente','Teléfono','Servicio','Técnica','Estatus'],
+    ...state.appointments.map(a=>[a.date,a.time,a.client,a.phone||'',a.service||'',a.tech||'',a.status||'ok'])];
+  S.download(`citas-${Date.now()}.csv`, S.csv(rows), 'text/csv');
+}
+document.getElementById('btnExportApCSV').onclick=exportAppointmentsCSV;
+document.getElementById('btnExportApPDF').onclick=()=>{
+  const rows = state.appointments.map(a=>`
+    <tr><td>${a.date}</td><td>${a.time}</td><td>${a.client}</td><td>${a.phone||''}</td><td>${a.service||''}</td><td>${a.tech||''}</td><td>${a.status||'ok'}</td></tr>
+  `).join('');
+  const html=`<html><head><meta charset="utf-8"><title>Citas</title>
+  <style>@page{size:A4 landscape;margin:10mm}body{font-family:${state.cfg.font};color:#111}
+  table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:6px}th{background:#f3f3f3}</style>
+  </head><body><h1>Citas</h1>
+  <table><thead><tr><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Teléfono</th><th>Servicio</th><th>Técnica</th><th>Estatus</th></tr></thead>
+  <tbody>${rows}</tbody></table></body></html>`;
+  const w=window.open('','print'); w.document.write(html); w.document.close(); w.focus(); w.print();
+};
+
+/* ====== Recordatorio 24h ====== */
+function scheduleReminder({id,date,time,client}){
+  const when = new Date(`${date}T${time}:00`).getTime() - 24*60*60*1000;
+  const ms = when - Date.now();
+  if(ms>0 && ms < 2**31-1) setTimeout(()=> S.notify(`Recordatorio: ${client} mañana ${date} ${time}`), ms);
+}
+
+/* ====== Cobros / Facturas ====== */
+function renderBilling(){
+  invDate.value=S.today(); invTime.value=S.nowTime();
+  refreshTechs(); refreshServices();
+  const tbl=document.getElementById('tblInv');
+  tbl.innerHTML='<tr><th>#</th><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Técnica</th><th>Método</th><th>Monto</th></tr>'+
+    state.invoices.map((i,idx)=>`<tr data-id="${i.id}" data-index="${idx}">
+      <td class="cell-pointer" data-field="number">${i.number||''}</td>
+      <td class="cell-pointer" data-field="date">${i.date||''}</td>
+      <td class="cell-pointer" data-field="time">${i.time||''}</td>
+      <td class="cell-pointer" data-field="client">${i.client||''}</td>
+      <td class="cell-pointer" data-field="service">${i.service||''}</td>
+      <td class="cell-pointer" data-field="tech">${i.tech||''}</td>
+      <td class="cell-pointer" data-field="pay">${i.pay||''}</td>
+      <td class="cell-pointer" data-field="amount">$${(+i.amount).toFixed(2)}</td>
+    </tr>`).join('');
+  enableInvoiceInlineEditing();
+}
+
+/* === Edición inline de cobros === */
+function enableInvoiceInlineEditing(){
+  const tbl = document.getElementById('tblInv');
+  let editing=null;
+  function finishEdit(td, commit){
+    if(!editing) return;
+    const {initial, field} = editing;
+    const tr = td.closest('tr');
+    const idx = +tr.dataset.index;
+    const inv = state.invoices[idx];
+    const input = td.querySelector('input');
+    const val = input.value.trim();
+    td.classList.remove('cell-editing');
+    td.innerHTML = field==='amount' ? ('$'+Number(val||0).toFixed(2)) : val;
+    if(commit){
+      if(field==='amount'){ inv.amount = parseFloat(val.replace(/[^\d.\-]/g,''))||0; }
+      else{ inv[field] = val; }
+      persistAll(); log('edit-cobro', `#${inv.number||''} campo ${field} cambiado`);
+    }else{
+      td.textContent = initial;
+    }
+    editing=null;
+  }
+  tbl.addEventListener('dblclick', (e)=>{
+    const td = e.target.closest('td.cell-pointer'); if(!td) return;
+    if(editing) finishEdit(editing.td,false);
+    const field = td.dataset.field;
+    const currentText = (field==='amount') ? (td.textContent||'').replace(/^\$/,'') : (td.textContent||'');
+    td.classList.add('cell-editing');
+    td.innerHTML = `<input style="width:100%;background:transparent;border:none;outline:none;color:var(--fg)" value="${currentText}">`;
+    const input = td.querySelector('input'); input.focus(); input.select();
+    editing = {td, field, initial: currentText};
+  });
+  tbl.addEventListener('keydown', (e)=>{
+    if(!editing) return;
+    if(e.key==='Enter'){ e.preventDefault(); finishEdit(editing.td,true); }
+    if(e.key==='Escape'){ e.preventDefault(); finishEdit(editing.td,false); }
+  });
+  document.addEventListener('click', (e)=>{
+    if(!editing) return;
+    if(!editing.td.contains(e.target)) finishEdit(editing.td,true);
+  });
+}
+
+// Guardar factura + webhook
+document.getElementById('btnSaveInv').onclick=async()=>{
+  const num = `${state.cfg.invoice.prefix}${String(state.cfg.invoice.next).padStart(5,'0')}`;
+  const inv={id:S.uid(), number:num, date:invDate.value,time:invTime.value,
+    client:invClient.value,phone:invPhone.value,service:invService.value,tech:invTech.value,
+    pay:invPay.value,amount:+invAmount.value||0, ts:Date.now()};
+  if(!inv.date||!inv.time||!inv.client||!inv.amount) return S.notify('Completa fecha, hora, cliente y monto.');
+  state.invoices.push(inv);
+  state.cfg.invoice.next++;
+  state.lastInvId = inv.id;
+  persistAll(); renderBilling();
+  log('cobro', `${inv.number} ${inv.client} $${inv.amount.toFixed(2)} (${inv.pay})`);
+
+  if(state.cfg.webhookUrl){
+    try{
+      await fetch(state.cfg.webhookUrl,{method:'POST',headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+        type:'invoice', data:{ fecha:inv.date, hora:inv.time, cliente:inv.client, telefono:inv.phone, servicio:inv.service, tecnica:inv.tech, metodo:inv.pay, monto:inv.amount, numero:inv.number }
+      })});
+      S.notify('Enviado a Hoja de Cuadre ✅');
+    }catch(e){ console.error(e); S.notify('No se pudo enviar a la Hoja (ver consola).'); }
+  }
+};
+
+// PDF factura
+document.getElementById('btnInvoicePDF').onclick=()=>{
+  let inv = state.invoices.find(i=>i.id===state.lastInvId);
+  if(!inv){
+    const tmpNum = `${state.cfg.invoice.prefix}${String(state.cfg.invoice.next).padStart(5,'0')}`;
+    inv = {number:tmpNum,date:invDate.value,time:invTime.value,client:invClient.value,phone:invPhone.value,service:invService.value,tech:invTech.value,pay:invPay.value,amount:+invAmount.value||0};
+    if(!inv.client) return S.notify('Genera o selecciona una factura primero.');
+  }
+  generateInvoicePDF(inv);
+};
+function generateInvoicePDF(inv){
+  const b = state.cfg.business;
+  const title = state.cfg.invoice.title || 'Factura / Recibo';
+  const foot = state.cfg.invoice.footer || '';
+  const logo = state.cfg.logo ? `<img src="${state.cfg.logo}" style="width:64px;height:64px;object-fit:contain">` : '';
+  const html = `
+  <html><head><meta charset="utf-8"><title>${title} ${inv.number}</title>
+  <style>
+    @page{ size:A4; margin:24mm 18mm; }
+    body{ font-family:${state.cfg.font}; color:#111; }
+    .row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .muted{color:#666}
+    h1{margin:0 0 4px 0;font-size:22px}
+    h2{margin:0;font-size:16px}
+    table{width:100%;border-collapse:collapse;margin-top:14px}
+    th,td{padding:10px;border-bottom:1px solid #e5e5e5;text-align:left}
+    th{background:#fafafa;font-weight:700}
+    .tot{font-weight:800}
+    .box{border:1px solid #eee;border-radius:10px;padding:10px}
+    .foot{margin-top:30px;font-size:12px;color:#555}
+    .tag{display:inline-block;padding:4px 8px;border-radius:999px;background:#111;color:#fff;font-size:12px}
+  </style></head><body>
+    <div class="row">
+      <div style="display:flex;gap:12px;align-items:center">
+        ${logo}
+        <div>
+          <h1>${b?.name || state.cfg.salonName}</h1>
+          <div class="muted">${b?.address || ''}</div>
+          <div class="muted">${b?.phone || ''} ${b?.email? ' · '+b.email : ''}</div>
+          <div class="muted">${b?.website || ''}</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div class="tag">${inv.number || ''}</div>
+        <div style="margin-top:8px"><b>${title}</b></div>
+        <div class="muted">${inv.date} ${inv.time||''}</div>
+        <div class="muted">${b?.taxId?('Tax ID: '+b.taxId):''}</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <div class="box" style="flex:1">
+        <h2>Cliente</h2>
+        <div><b>${inv.client}</b></div>
+        <div class="muted">${inv.phone||''}</div>
+      </div>
+      <div class="box" style="width:240px">
+        <h2>Detalles</h2>
+        <div>Pago: <b>${inv.pay||''}</b></div>
+        <div>Técnica: <b>${inv.tech||''}</b></div>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Servicio</th><th style="width:120px">Precio</th></tr></thead>
+      <tbody><tr><td>${inv.service||'Servicio'}</td><td>$${(+inv.amount||0).toFixed(2)}</td></tr></tbody>
+      <tfoot><tr><td class="tot">Total</td><td class="tot">$${(+inv.amount||0).toFixed(2)}</td></tr></tfoot>
+    </table>
+    <div class="foot">${foot}</div>
+  </body></html>`;
+  const w=window.open('','print'); w.document.open(); w.document.write(html); w.document.close(); w.focus(); w.print();
+}
+
+/* ===== Exportaciones Cobros ===== */
+document.getElementById('btnExportInvJSON').onclick=()=>S.download(`cobros-${Date.now()}.json`,JSON.stringify(state.invoices,null,2));
+document.getElementById('btnExportInvCSV').onclick=()=>{
+  const rows=[['Número','Fecha','Hora','Cliente','Teléfono','Servicio','Técnica','Método','Monto'],
+    ...state.invoices.map(i=>[i.number||'',i.date,i.time||'',i.client,i.phone||'',i.service||'',i.tech||'',i.pay||'',(+i.amount||0)])];
+  S.download(`cobros-${Date.now()}.csv`, S.csv(rows), 'text/csv');
+};
+document.getElementById('btnExportInvPDF').onclick=()=>{
+  const total = state.invoices.reduce((a,i)=>a+(+i.amount||0),0);
+  const rows = state.invoices.map(i=>`
+    <tr>
+      <td>${i.number||''}</td><td>${i.date||''}</td><td>${i.time||''}</td><td>${i.client||''}</td>
+      <td>${i.phone||''}</td><td>${i.service||''}</td><td>${i.tech||''}</td><td>${i.pay||''}</td>
+      <td style="text-align:right">$${(+i.amount||0).toFixed(2)}</td>
+    </tr>`).join('');
+  const html = `
+  <html><head><meta charset="utf-8"><title>Historial de Cobros</title>
+  <style>@page{ size:A4 landscape; margin:10mm }body{ font-family:${state.cfg.font}; color:#111 }
+  h1{ margin:0 0 8px 0; font-size:18px }table{ width:100%; border-collapse:collapse; font-size:12px }
+  th,td{ border:1px solid #cfcfcf; padding:6px 8px }th{ background:#f3f3f3; text-align:left }
+  tfoot td{ font-weight:700; background:#fafafa }.meta{ color:#555; margin-bottom:8px }</style></head><body>
+    <h1>Historial de Cobros</h1><div class="meta">${new Date().toLocaleString()}</div>
+    <table><thead><tr>
+      <th>Número</th><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Teléfono</th>
+      <th>Servicio</th><th>Técnica</th><th>Método</th><th style="text-align:right">Monto</th>
+    </tr></thead><tbody>${rows||''}</tbody>
+    <tfoot><tr><td colspan="8">TOTAL</td><td style="text-align:right">$${total.toFixed(2)}</td></tr></tfoot></table>
+  </body></html>`;
+  const w=window.open('','print'); w.document.open(); w.document.write(html); w.document.close(); w.focus(); w.print();
+};
+document.getElementById('importInvJSON').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  f.text().then(t=>{ state.invoices=JSON.parse(t); persistAll(); renderBilling(); });
+};
+
+/* ======= NUEVO: Agrupaciones y exportaciones por Técnica / Día / Hora ======= */
+function groupInvoices(mode){
   const list = state.invoices || [];
-  const techFilter = opts.tech || '(todas)';
-  const period = opts.period || 'all';
-  const pr = getPeriodRange(period);
+  const keyFn = mode==='tech'
+    ? (i)=> i.tech || '(sin técnica)'
+    : mode==='day'
+      ? (i)=> i.date || '(sin fecha)'
+      : (i)=> (i.time ? (i.time.slice(0,2)+':00') : '(sin hora)'); // hour bucket
 
   const map = {};
-  for(const inv of list){
-    const invDate = new Date(inv.date);
-    // filtro periodo
-    if(pr){
-      if(invDate < pr.from || invDate >= pr.to) continue;
-    }
-    // filtro técnica
-    if(techFilter && techFilter !== '(todas)' && inv.tech !== techFilter) continue;
-
-    let key;
-    if(mode === 'tech'){
-      key = inv.tech || '(sin técnica)';
-    } else if(mode === 'day'){
-      key = inv.date || '(sin fecha)';
-    } else if(mode === 'hour'){
-      if(inv.time){
-        const h = inv.time.split(':')[0];
-        key = h + ':00';
-      } else {
-        key = '(sin hora)';
-      }
-    } else {
-      key = inv.tech || '(sin técnica)';
-    }
-
-    const amt = +inv.amount || 0;
-    if(!map[key]) map[key] = { key: key, total: 0, count: 0 };
-    map[key].total += amt;
-    map[key].count += 1;
+  for(const i of list){
+    const k = keyFn(i);
+    const amt = (+i.amount||0);
+    if(!map[k]) map[k] = {key:k, count:0, total:0};
+    map[k].count += 1;
+    map[k].total += amt;
   }
-
-  return Object.values(map).sort((a,b)=> b.total - a.total || a.key.localeCompare(b.key));
+  return Object.values(map).sort((a,b)=> b.total - a.total || String(a.key).localeCompare(String(b.key)));
 }
 
-// Export CSV agruado
 function exportInvGroupedCSV(mode){
-  const tech = document.getElementById('invTechFilter')?.value || '(todas)';
-  const period = document.getElementById('invPeriodFilter')?.value || 'all';
-  const data = groupInvoicesBy(mode, { tech, period });
-  const niceLabel = mode === 'tech' ? 'Técnica'
-                     : mode === 'day' ? 'Día'
-                     : 'Hora';
-  const rows = [[niceLabel, 'Cantidad', 'Total ($)']];
-  data.forEach(r=>{
-    rows.push([r.key, r.count, r.total.toFixed(2)]);
-  });
-  S.download(`cobros-${mode}-${tech}-${period}-${Date.now()}.csv`, S.csv(rows), 'text/csv');
+  const nice = mode==='tech'?'Técnica':mode==='day'?'Día':'Hora';
+  const rows = [[nice,'Cantidad','Total ($)']];
+  const data = groupInvoices(mode);
+  data.forEach(r=>rows.push([r.key, r.count, r.total.toFixed(2)]));
+  S.download(`cobros-por-${mode}-${Date.now()}.csv`, S.csv(rows), 'text/csv');
 }
 
-// Export PDF agrupado
 function exportInvGroupedPDF(mode){
-  const tech = document.getElementById('invTechFilter')?.value || '(todas)';
-  const period = document.getElementById('invPeriodFilter')?.value || 'all';
-  const data = groupInvoicesBy(mode, { tech, period });
-  let sumTotal = 0, sumCount = 0;
-  data.forEach(r=>{ sumTotal += r.total; sumCount += r.count; });
+  const nice = mode==='tech'?'Técnica':mode==='day'?'Día':'Hora';
+  const data = groupInvoices(mode);
+  const sumTotal = data.reduce((a,x)=>a+x.total,0);
+  const sumCount = data.reduce((a,x)=>a+x.count,0);
 
-  const niceLabel = mode === 'tech' ? 'Técnica'
-                     : mode === 'day' ? 'Día'
-                     : 'Hora';
-  const periodLabel = period === 'today' ? 'Hoy'
-                      : period === 'this_week' ? 'Esta semana'
-                      : period === 'this_month' ? 'Este mes'
-                      : period === 'this_year' ? 'Este año'
-                      : 'Todo';
+  const rows = data.map(r=>`
+    <tr>
+      <td>${r.key}</td>
+      <td style="text-align:right">${r.count}</td>
+      <td style="text-align:right">$${r.total.toFixed(2)}</td>
+    </tr>`).join('');
 
-  // Crear un elemento temporal para contenido del PDF
-  const div = document.createElement('div');
-  div.style.padding = "20px";
-  div.style.background = "#fff";
-  div.style.color = "#000";
-  div.innerHTML = `
-    <h1>Historial de Cobros — Agrupado por ${niceLabel}</h1>
-    <div> Técnica: ${tech} · Periodo: ${periodLabel} · Generado: ${new Date().toLocaleString()}</div>
-    <table border="1" style="width:100%; border-collapse:collapse; margin-top:12px;">
-      <thead>
-        <tr>
-          <th>${niceLabel}</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Total ($)</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${ data.map(r=>`
-          <tr>
-            <td>${r.key}</td>
-            <td style="text-align:right">${r.count}</td>
-            <td style="text-align:right">$${r.total.toFixed(2)}</td>
-          </tr>
-        `).join('') }
-      </tbody>
+  const html = `
+  <html><head><meta charset="utf-8"><title>Cobros por ${nice}</title>
+  <style>
+    @page{ size:A4 landscape; margin:12mm }
+    body{ font-family:${state.cfg.font}; color:#111 }
+    h1{ margin:0 0 8px 0; font-size:18px }
+    .meta{ color:#555; margin-bottom:8px }
+    table{ width:100%; border-collapse:collapse; font-size:12px }
+    th,td{ border:1px solid #cfcfcf; padding:6px 8px }
+    th{ background:#f3f3f3; text-align:left }
+    tfoot td{ font-weight:700; background:#fafafa }
+  </style></head><body>
+    <h1>Historial de Cobros — Agrupado por ${nice}</h1>
+    <div class="meta">Generado: ${new Date().toLocaleString()}</div>
+    <table>
+      <thead><tr><th>${nice}</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>${rows || ''}</tbody>
       <tfoot>
-        <tr>
-          <td>TOTAL</td><td style="text-align:right">${sumCount}</td><td style="text-align:right">$${sumTotal.toFixed(2)}</td>
-        </tr>
+        <tr><td>TOTAL</td><td style="text-align:right">${sumCount}</td><td style="text-align:right">$${sumTotal.toFixed(2)}</td></tr>
       </tfoot>
     </table>
-  `;
-  document.body.appendChild(div);
-  html2pdf().set({
-    margin:10,
-    filename:`cobros-${mode}-${tech}-${period}-${Date.now()}.pdf`,
-    html2canvas:{ scale:2 },
-    jsPDF:{ unit:'mm', format:'a4', orientation:'landscape' }
-  }).from(div).save()
-    .then(()=>{ document.body.removeChild(div); });
+  </body></html>`;
+
+  const w=window.open('','print'); w.document.open(); w.document.write(html); w.document.close(); w.focus(); w.print();
 }
 
-// ===== Enlazar botones nuevos =====
+// Wire-up de botones agrupados
 document.getElementById('btnExportInvByTechCSV').onclick = ()=>exportInvGroupedCSV('tech');
 document.getElementById('btnExportInvByTechPDF').onclick = ()=>exportInvGroupedPDF('tech');
-document.getElementById('btnExportInvByDayCSV').onclick = ()=>exportInvGroupedCSV('day');
-document.getElementById('btnExportInvByDayPDF').onclick = ()=>exportInvGroupedPDF('day');
+document.getElementById('btnExportInvByDayCSV').onclick  = ()=>exportInvGroupedCSV('day');
+document.getElementById('btnExportInvByDayPDF').onclick  = ()=>exportInvGroupedPDF('day');
 document.getElementById('btnExportInvByHourCSV').onclick = ()=>exportInvGroupedCSV('hour');
 document.getElementById('btnExportInvByHourPDF').onclick = ()=>exportInvGroupedPDF('hour');
 
-/* ------------------- FIN de añadidos ------------------- */
+/* ====== Abrir hoja y probar webhook ====== */
+document.getElementById('btnOpenSheet').onclick=()=>{ if(state.cfg.sheetUrl) window.open(state.cfg.sheetUrl,'_blank'); else S.notify('Configura la URL de la Hoja.'); };
+document.getElementById('btnTestWebhook').onclick=()=>{ if(!state.cfg.webhookUrl) return S.notify('Configura webhook en Configuración.');
+  fetch(state.cfg.webhookUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'ping',ts:Date.now()})})
+  .then(()=>S.notify('Webhook OK (ping enviado)')).catch(()=>S.notify('Error de webhook')); };
 
-/* ===== resto de tus scripts originales sin cambios ===== */
+/* ====== Rendimiento (Analytics) ====== */
+function sumBy(arr,fn){return arr.reduce((a,x)=>a+(+fn(x)||0),0)}
+function renderAnalytics(){
+  const range=document.getElementById('rangeKPI').value||'month';
+  // Inyectar botón CSV si no existe
+  if(!document.getElementById('btnExportAnalCSV')){
+    const btn=document.createElement('button'); btn.id='btnExportAnalCSV'; btn.className='btn small'; btn.textContent='📄 Excel (CSV)';
+    document.getElementById('btnExportAnalPDF').after(btn);
+    btn.onclick=exportAnalyticsCSV;
+  }
+  // Inyectar CSV para Historial (logs)
+  if(!document.getElementById('btnExportLogsCSV')){
+    const btn=document.createElement('button'); btn.id='btnExportLogsCSV'; btn.className='btn small'; btn.textContent='📄 Excel (CSV)';
+    document.getElementById('btnExportLogsPDF').after(btn);
+    btn.onclick=exportLogsCSV;
+    document.getElementById('btnExportLogsPDF').onclick=exportLogsPDF;
+  }
 
+  const now=new Date();
+  const start = range==='day'?new Date(now.getFullYear(),now.getMonth(),now.getDate()):
+                range==='week'?S.addDays(now,-6):
+                new Date(now.getFullYear(),now.getMonth(),1);
+  const invInRange=state.invoices.filter(i=>new Date(i.date)>=start);
+  const total=sumBy(invInRange,i=>i.amount);
+  const byTech={}; invInRange.forEach(i=>byTech[i.tech]=(byTech[i.tech]||0)+(+i.amount||0));
+  const byPay={}; invInRange.forEach(i=>byPay[i.pay]=(byPay[i.pay]||0)+(+i.amount||0));
+  const bySrvCount={}; invInRange.forEach(i=>bySrvCount[i.service]=(bySrvCount[i.service]||0)+1);
+
+  const apInRange=state.appointments.filter(a=>new Date(a.date)>=start);
+  const nos=apInRange.filter(a=>a.status==='no-show').length;
+  const ok=apInRange.length - nos;
+
+  const k=document.getElementById('kpis'); k.innerHTML='';
+  const makeK=(title,val)=>{const c=document.createElement('div'); c.className='card'; c.innerHTML=`<div style="color:var(--muted)">${title}</div><div style="font-size:26px;font-weight:800">${val}</div>`; k.appendChild(c);}
+  makeK('Ingresos', `$${total.toFixed(2)}`);
+  makeK('Citas', apInRange.length);
+  makeK('No-shows', nos);
+
+  // === Gráfica 1 interactiva ===
+  let labels, values, colors, title;
+  if(state.chartMode==='tech'){ labels=Object.keys(byTech); values=Object.values(byTech); colors=labels.map(()=>state.cfg.chartColors.tech); title='Ingresos por técnica'; }
+  else if(state.chartMode==='service'){ labels=Object.keys(bySrvCount); values=Object.values(bySrvCount); colors=labels.map(()=>state.cfg.chartColors.service); title='Top servicios (conteo)'; }
+  else if(state.chartMode==='pay'){ labels=Object.keys(byPay); values=Object.values(byPay); colors=labels.map(()=>state.cfg.chartColors.pay); title='Ingresos por método de pago'; }
+  else { labels=['Citas','No-show']; values=[ok,nos]; colors=[state.cfg.chartColors.appt,state.cfg.chartColors.noShow]; title='Citas vs No-show'; }
+  drawBar('chart1', labels, values, {title, barColors:colors});
+
+  // === Gráfica 2 fija: servicios (conteo) ===
+  drawBar('chart2', Object.keys(bySrvCount), Object.values(bySrvCount), {title:'Top servicios (conteo)', barColors:Object.keys(bySrvCount).map(()=>state.cfg.chartColors.service)});
+
+  // Export PDF (rango funciona)
+  document.getElementById('btnExportAnalPDF').onclick=()=>exportAnalyticsPDF({range, start, totals:{total, citas:apInRange.length, nos}});
+}
+document.getElementById('rangeKPI').onchange=renderAnalytics;
+
+/* === Canvas Bar Chart con colores editables === */
+function drawBar(canvasId, labels, vals, opts={}){
+  const c=document.getElementById(canvasId), ctx=c.getContext('2d');
+  const W=c.width=c.clientWidth; const H=c.height=c.height;
+  ctx.clearRect(0,0,W,H);
+
+  const title=opts.title||'';
+  const gridColor=state.cfg.chartColors.grid||'#888';
+  const barColors=opts.barColors || labels.map(()=>state.cfg.chartColors.bars||'#fff');
+
+  // Título
+  ctx.fillStyle='#ffffff'; ctx.font='14px sans-serif'; ctx.fillText(title, 12, 16);
+
+  // Escala
+  const max=Math.max(1,...vals);
+  const padL=36, padR=10, padT=24, padB=28;
+  const innerW=W - padL - padR, innerH=H - padT - padB;
+  // grid
+  ctx.strokeStyle=gridColor; ctx.lineWidth=1; ctx.globalAlpha=0.4;
+  ctx.beginPath();
+  for(let i=0;i<=4;i++){
+    const y=padT + innerH*(i/4);
+    ctx.moveTo(padL,y); ctx.lineTo(padL+innerW,y);
+    const val=Math.round(max*(1-i/4));
+    ctx.fillStyle='#bbb'; ctx.fillText(val.toString(), 4, y+4);
+  }
+  ctx.stroke(); ctx.globalAlpha=1;
+
+  const bw = innerW / Math.max(1,labels.length);
+  labels.forEach((lab,i)=>{
+    const v=vals[i]; const h = (v/max) * innerH;
+    const x=padL + i*bw + bw*0.15, y=padT + innerH - h, w=bw*0.7;
+    ctx.fillStyle = barColors[i] || '#fff';
+    ctx.fillRect(x,y,w,h);
+    // etiqueta
+    ctx.fillStyle='#ddd'; ctx.font='12px sans-serif';
+    ctx.save(); ctx.translate(x+w/2, H-8); ctx.textAlign='center'; ctx.fillText(lab, 0, 0); ctx.restore();
+    ctx.fillStyle='#fff'; ctx.font='12px sans-serif'; ctx.fillText(String(v), x, y-4);
+  });
+}
+
+/* ====== Config ====== */
+function renderConfig(){
+  cfgSalonName.value=state.cfg.salonName; cfgFont.value=state.cfg.font;
+  cfgBg.value=state.cfg.colors.bg; cfgTopbar.value=state.cfg.colors.topbar; cfgBtn.value=state.cfg.colors.btn; cfgAccent.value=state.cfg.colors.accent;
+  cfgFooter.value=state.cfg.footer; sheetUrlCode.textContent = state.cfg.sheetUrl;
+  refreshTechs(); refreshServices(); buildMenu();
+
+  // Datos de negocio
+  bizName.value=state.cfg.business.name;  bizTax.value=state.cfg.business.taxId;
+  bizPhone.value=state.cfg.business.phone; bizEmail.value=state.cfg.business.email;
+  bizAddress.value=state.cfg.business.address; bizWeb.value=state.cfg.business.website;
+
+  // Facturación
+  invPrefix.value=state.cfg.invoice.prefix; invNext.value=state.cfg.invoice.next;
+  invTitle.value=state.cfg.invoice.title;   invFooter.value=state.cfg.invoice.footer;
+
+  // Horario
+  renderHoursTable();
+
+  // Menú style
+  msRadius.value=state.cfg.menuStyle.radius; msBlur.value=state.cfg.menuStyle.blur;
+  msShadow.value=state.cfg.menuStyle.shadow; msCols.value=state.cfg.menuStyle.cols;
+  msCard.value=state.cfg.menuStyle.card;     msBorder.value=state.cfg.menuStyle.border;
+  msIcon.value=state.cfg.menuStyle.icon;     msLayout.value=state.cfg.menuStyle.layout||'grid';
+
+  // Intervalo agenda
+  cfgApptStep.value = state.cfg.apptStepMinutes || 30;
+
+  // Usuarios
+  renderUsers();
+
+  // Colores de gráficas
+  mountChartColorsUI();
+}
+
+function mountChartColorsUI(){
+  const card = document.querySelector('#viewConfig .card'); if(!card) return;
+  let mount = document.getElementById('chartColorsMount');
+  if(!mount){
+    mount = document.createElement('div'); mount.id='chartColorsMount';
+    mount.innerHTML = `
+      <hr><h3>Colores de gráficas</h3>
+      <div class="grid two">
+        <div><label>Barras (default)</label><input type="color" id="colBars"></div>
+        <div><label>Grid</label><input type="color" id="colGrid"></div>
+        <div><label>Ingresos por técnica</label><input type="color" id="colTech"></div>
+        <div><label>Servicios (conteo)</label><input type="color" id="colService"></div>
+        <div><label>Ingresos por método pago</label><input type="color" id="colPay"></div>
+        <div><label>Citas</label><input type="color" id="colAppt"></div>
+        <div><label>No-show</label><input type="color" id="colNoShow"></div>
+      </div>`;
+    card.appendChild(mount);
+  }
+  const cc = state.cfg.chartColors||{};
+  colBars.value = cc.bars || '#ffffff';
+  colGrid.value = cc.grid || '#888888';
+  colTech.value = cc.tech || '#60a5fa';
+  colService.value = cc.service || '#34d399';
+  colPay.value = cc.pay || '#f59e0b';
+  colAppt.value = cc.appt || '#10b981';
+  colNoShow.value = cc.noShow || '#ef4444';
+}
+
+function renderHoursTable(){
+  const t=document.getElementById('tblHours');
+  t.innerHTML='<tr><th>Día</th><th>Abierto</th><th>Desde</th><th>Hasta</th></tr>'+
+   DKEY.map((k,i)=>{
+     const h=state.cfg.hours[k];
+     return `<tr>
+       <td>${DNAME[i]}</td>
+       <td><input type="checkbox" id="h_${k}_open" ${h.open?'checked':''}></td>
+       <td><input type="time" id="h_${k}_from" value="${h.from}"></td>
+       <td><input type="time" id="h_${k}_to" value="${h.to}"></td>
+     </tr>`
+   }).join('');
+}
+
+btnSaveTheme.onclick=()=>{
+  state.cfg.salonName=cfgSalonName.value; state.cfg.font=cfgFont.value;
+  state.cfg.colors.bg=cfgBg.value; state.cfg.colors.topbar=cfgTopbar.value; state.cfg.colors.btn=cfgBtn.value; state.cfg.colors.accent=cfgAccent.value;
+  state.cfg.footer=cfgFooter.value;
+
+  // Business
+  state.cfg.business.name=bizName.value; state.cfg.business.taxId=bizTax.value;
+  state.cfg.business.phone=bizPhone.value; state.cfg.business.email=bizEmail.value;
+  state.cfg.business.address=bizAddress.value; state.cfg.business.website=bizWeb.value;
+
+  // Invoice
+  state.cfg.invoice.prefix=invPrefix.value||'INV-';
+  state.cfg.invoice.next=+invNext.value||1;
+  state.cfg.invoice.title=invTitle.value||'Factura / Recibo';
+  state.cfg.invoice.footer=invFooter.value||'';
+
+  // Horario
+  DKEY.forEach(k=>{
+    const open=document.getElementById(`h_${k}_open`).checked;
+    const from=document.getElementById(`h_${k}_from`).value||'09:00';
+    const to=document.getElementById(`h_${k}_to`).value||'18:00';
+    state.cfg.hours[k]={open,from,to};
+  });
+
+  // Menu style + layout
+  state.cfg.menuStyle.radius=+msRadius.value||16;
+  state.cfg.menuStyle.blur=+msBlur.value||10;
+  state.cfg.menuStyle.shadow=+msShadow.value||.35;
+  state.cfg.menuStyle.cols=+msCols.value||2;
+  state.cfg.menuStyle.card=msCard.value||'rgba(255,255,255,.04)';
+  state.cfg.menuStyle.border=msBorder.value||'1px solid rgba(255,255,255,.10)';
+  state.cfg.menuStyle.icon=+msIcon.value||22;
+  state.cfg.menuStyle.layout=msLayout.value||'grid';
+
+  // Intervalo agenda
+  state.cfg.apptStepMinutes = Math.max(5, Math.min(120, +cfgApptStep.value||30));
+
+  // Chart colors
+  const mount=document.getElementById('chartColorsMount');
+  if(mount){
+    state.cfg.chartColors={
+      bars:colBars.value, grid:colGrid.value, tech:colTech.value,
+      service:colService.value, pay:colPay.value, appt:colAppt.value, noShow:colNoShow.value
+    };
+  }
+
+  persistAll(); applyTheme(); buildMenu(); renderSlots(); renderAnalytics();
+};
+
+cfgLogo.onchange=e=>fileToDataUrl(e.target.files[0]).then(url=>{ state.cfg.logo=url; persistAll(); applyTheme(); });
+cfgBgImg.onchange=e=>fileToDataUrl(e.target.files[0]).then(url=>{ state.cfg.bgImage=url; persistAll(); applyTheme(); });
+
+btnAddTech.onclick=()=>{ const t=techNew.value?.trim(); if(!t) return; state.techs.push(t); techNew.value=''; persistAll(); refreshTechs(); };
+btnAddSrv.onclick=()=>{ const name=srvName.value?.trim(); const price=+srvPrice.value||0; if(!name) return; state.services.push({name,price}); srvName.value=''; srvPrice.value=''; persistAll(); refreshServices(); };
+
+btnExportCfg.onclick=()=>S.download('config.json', JSON.stringify(state.cfg,null,2));
+importCfg.onchange=e=>{ const f=e.target.files[0]; if(!f) return; f.text().then(t=>{ state.cfg=JSON.parse(t); persistAll(); applyTheme(); renderConfig(); }) };
+
+// Usuarios
+function renderUsers(){
+  tblUsers.innerHTML='<tr><th>Usuario</th><th>Rol</th><th></th></tr>'+
+   state.users.map((u,i)=>`<tr><td>${u.user}</td><td>${u.role}</td><td><button class="btn small danger" onclick="delUser(${i})">Eliminar</button></td></tr>`).join('');
+}
+function delUser(i){ state.users.splice(i,1); persistAll(); renderUsers(); }
+btnAddUser.onclick=()=>{
+  const u=uUser.value?.trim(), p=uPass.value, r=uRole.value;
+  if(!u||!p) return S.notify('Usuario y contraseña requeridos.');
+  if(state.users.some(x=>x.user===u)) return S.notify('Usuario ya existe.');
+  state.users.push({user:u,pass:p,role:r}); persistAll(); renderUsers();
+}
+
+/* ====== Backups ====== */
+function renderBackups(){}
+document.getElementById('btnSchedBackups').onclick=()=>S.notify('Backups programados (simulado)');
+document.querySelectorAll('[data-backup]').forEach(b=>{
+  b.onclick=()=>{
+    const [what,freq]=b.dataset.backup.split(':');
+    const data = what==='appointments'?state.appointments:what==='billing'?{invoices:state.invoices, noshows:state.noshows}:{};
+    S.download(`${what}-${freq}-${Date.now()}.json`, JSON.stringify(data,null,2));
+  }
+});
+document.getElementById('btnExportAll').onclick=()=>{
+  const dump = {cfg:state.cfg, users:state.users, menu:state.menu, techs:state.techs, services:state.services, appointments:state.appointments, invoices:state.invoices, noshows:state.noshows, logs:state.logs};
+  S.download(`backup-total-${Date.now()}.json`, JSON.stringify(dump,null,2));
+};
+document.getElementById('importAll').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return; f.text().then(t=>{ const dump=JSON.parse(t); Object.assign(state,dump); persistAll(); applyTheme(); buildMenu(); S.notify('Restaurado.'); });
+};
+
+/* ====== Logs ====== */
+function log(type,msg){
+  state.logs.push({id:S.uid(), type, msg, ts:Date.now(), user:state.session?.user||'anon'});
+  S.save('logs', state.logs);
+}
+function renderLogsTable(){
+  tblLogs.innerHTML='<tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Mensaje</th></tr>' +
+    state.logs.slice(-200).reverse().map(l=>`<tr><td>${S.toLocalDateTimeStr(new Date(l.ts))}</td><td>${l.user}</td><td>${l.type}</td><td>${l.msg}</td></tr>`).join('');
+}
+
+/* ====== Export Analytics / Logs ====== */
+function exportAnalyticsCSV(){
+  const r=document.getElementById('rangeKPI').value;
+  // KPIs
+  const now=new Date();
+  const start = r==='day'?new Date(now.getFullYear(),now.getMonth(),now.getDate()):
+               r==='week'?S.addDays(now,-6):
+               new Date(now.getFullYear(),now.getMonth(),1);
+  const inv=state.invoices.filter(i=>new Date(i.date)>=start);
+  const total=inv.reduce((a,i)=>a+(+i.amount||0),0);
+  const ap=state.appointments.filter(a=>new Date(a.date)>=start);
+  const nos=ap.filter(a=>a.status==='no-show').length;
+
+  // desglose simple
+  const by=(k)=>Object.entries(inv.reduce((m,i)=>(m[i[k]]=(m[i[k]]||0)+(+i.amount||0),m),{}));
+  const rows=[
+    ['Rango',r],['Fecha desde',start.toISOString().slice(0,10)],[],['KPI','Valor'],
+    ['Ingresos',total.toFixed(2)],['Citas',ap.length],['No-shows',nos],[],['Ingresos por técnica','Monto'], ...by('tech'),
+    [],['Ingresos por método','Monto'], ...by('pay')
+  ];
+  S.download(`analytics-${r}-${Date.now()}.csv`, S.csv(rows.map(r=>r.map(x=>Array.isArray(x)?x[0]:x))), 'text/csv');
+}
+function exportAnalyticsPDF({range, start, totals}){
+  const inv=state.invoices.filter(i=>new Date(i.date)>=start);
+  const ap=state.appointments.filter(a=>new Date(a.date)>=start);
+  const by=(k,fmtVal=x=>x)=>Object.entries(inv.reduce((m,i)=>(m[i[k]]=(m[i[k]]||0)+(+i.amount||0),m),{}))
+    .map(([k,v])=>`<tr><td>${k||'(vacío)'}</td><td style="text-align:right">$${(+v).toFixed(2)}</td></tr>`).join('');
+  const rowsAp = ap.map(a=>`<tr><td>${a.date}</td><td>${a.time}</td><td>${a.client}</td><td>${a.service||''}</td><td>${a.tech||''}</td><td>${a.status||'ok'}</td></tr>`).join('');
+  const html=`
+  <html><head><meta charset="utf-8"><title>Analytics (${range})</title>
+  <style>@page{size:A4;margin:12mm}body{font-family:${state.cfg.font};color:#111}
+  h1{margin:0 0 4px 0} h2{margin:12px 0 6px 0} table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{border:1px solid #ddd;padding:6px} th{background:#f6f6f6}</style></head><body>
+  <h1>Rendimiento — ${range.toUpperCase()}</h1>
+  <div style="color:#666">Desde: ${start.toISOString().slice(0,10)} · Generado: ${new Date().toLocaleString()}</div>
+  <h2>KPI</h2>
+  <table><tr><th>Ingresos</th><th>Citas</th><th>No-shows</th></tr>
+    <tr><td>$${(+totals.total||0).toFixed(2)}</td><td>${totals.citas||0}</td><td>${totals.nos||0}</td></tr>
+  </table>
+  <h2>Ingresos por técnica</h2><table><tr><th>Técnica</th><th style="text-align:right">Monto</th></tr>${by('tech')}</table>
+  <h2>Ingresos por método</h2><table><tr><th>Método</th><th style="text-align:right">Monto</th></tr>${by('pay')}</table>
+  <h2>Citas del rango</h2><table><tr><th>Fecha</th><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Técnica</th><th>Estatus</th></tr>${rowsAp}</table>
+  </body></html>`;
+  const w=window.open('','print'); w.document.write(html); w.document.close(); w.focus(); w.print();
+}
+function exportLogsPDF(){
+  const rows = state.logs.slice(-500).map(l=>`<tr><td>${S.toLocalDateTimeStr(new Date(l.ts))}</td><td>${l.user}</td><td>${l.type}</td><td>${l.msg}</td></tr>`).join('');
+  const html=`<html><head><meta charset="utf-8"><title>Historial</title>
+  <style>@page{size:A4 landscape;margin:10mm}body{font-family:${state.cfg.font};color:#111}
+  table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ccc;padding:6px}th{background:#f3f3f3}</style>
+  </head><body><h1>Historial</h1>
+  <table><thead><tr><th>Fecha</th><th>Usuario</th><th>Tipo</th><th>Mensaje</th></tr></thead><tbody>${rows}</tbody></table>
+  </body></html>`;
+  const w=window.open('','print'); w.document.write(html); w.document.close(); w.focus(); w.print();
+}
+function exportLogsCSV(){
+  const rows=[['Fecha','Usuario','Tipo','Mensaje'],
+    ...state.logs.slice(-1000).map(l=>[S.toLocalDateTimeStr(new Date(l.ts)),l.user,l.type,l.msg])];
+  S.download(`historial-${Date.now()}.csv`, S.csv(rows), 'text/csv');
+}
+
+/* ====== Helpers ====== */
+function fileToDataUrl(file){return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });}
+
+/* ====== Eventos de UI ====== */
+document.querySelectorAll('[data-back]').forEach(b=>b.onclick=toMenu);
+btnDashboard.onclick=toMenu;
+btnLogout.onclick=logout;
+btnDoLogin.onclick=()=>login(loginUser.value, loginPass.value);
+
+filterDate.onchange=()=>{ renderApTable(); renderSlots(); };
+filterClient.oninput=()=>renderApTable();
+calMonth.oninput=()=>renderCalendar();
+
+/* === Clic en chart1 para alternar modo === */
+document.getElementById('chart1').onclick=()=>{
+  const modes=['tech','service','pay','show'];
+  const i=modes.indexOf(state.chartMode);
+  state.chartMode = modes[(i+1)%modes.length];
+  persistAll();
+  renderAnalytics();
+};
+
+/* ====== Cargar ====== */
+(function init(){
+  applyTheme();
+  if(state.session) toMenu(); else show('viewLogin');
+  refreshTechs(); refreshServices();
+  renderLogsTable();
+  renderAnalytics();
+  // PWA
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('service-worker.js'); }
+})();
 </script>
 </body>
 </html>
