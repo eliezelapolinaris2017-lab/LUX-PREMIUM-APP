@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111111">
+<title>Salon Pro — Dashboard con exportes por Técnica / Período</title>
+
+<!-- Incluir html2pdf.js para generar PDF desde HTML (cliente) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+  integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
+  crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<style>
+/* ====== tu CSS original (sin cambios) ====== */
+:root{
+  --bg:#0f0f12;
+  --fg:#ffffff;
+  --muted:#a7a7b1;
+  --primary:#6ee7b7;
+  --topbar:#15151b;
+  --card:#1a1b23;
+  --btn:#26283a;
+  --accent:#93c5fd;
+  --danger:#ef4444;
+  --ok:#22c55e;
+  --warn:#f59e0b;
+  --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+
+  --menu-radius:16px;
+  --menu-blur:10px;
+  --menu-shadow:0 10px 30px rgba(0,0,0,.35);
+  --menu-card:rgba(255,255,255,.04);
+  --menu-border:1px solid rgba(255,255,255,.10);
+  --menu-cols:2;
+  --menu-icon:22px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg) no-repeat center/cover;
+  color:var(--fg);font-family:var(--font);
+}
+.topbar{
+  position:sticky;top:0;z-index:10;
+  display:flex;align-items:center;gap:.6rem;
+  padding:.6rem .9rem;background:var(--topbar);border-bottom:1px solid #00000055;
+}
+.logo{ width:34px;height:34px;border-radius:6px;object-fit:contain;background:#0003;display:inline-block }
+.title{font-weight:700;letter-spacing:.2px}
+.spacer{flex:1}
+.btn{
+  display:inline-flex;align-items:center;gap:.5rem;
+  padding:.55rem .8rem;border-radius:10px;border:1px solid #00000066;
+  background:var(--btn);color:var(--fg);cursor:pointer;font-weight:600;
+}
+.btn.small{padding:.35rem .6rem;font-size:.9rem;border-radius:8px}
+.btn.ghost{background:transparent}
+.btn.primary{background:var(--accent)}
+.btn.ok{background:var(--ok)}
+.btn.warn{background:var(--warn)}
+.btn.danger{background:var(--danger)}
+.hidden{display:none !important}
+.container{max-width:1000px;margin:1rem auto;padding:0 1rem}
+.card{
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.02));
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;padding:1rem;margin:.7rem 0;
+  box-shadow:0 12px 28px rgba(0,0,0,.28);
+}
+.grid{display:grid;gap:1rem}
+.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+label{display:block;margin:.4rem 0 .2rem;color:var(--muted);font-size:.9rem}
+input,select,textarea{
+  width:100%;padding:.55rem .6rem;border-radius:10px;border:1px solid #00000055;background:#0f1017;color:var(--fg)
+}
+input[type="color"]{padding:.2rem;height:38px}
+.row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.kbd{background:#0002;border:1px solid #0003;border-radius:6px;padding:.1rem .35rem;font-size:.85rem}
+
+/* … resto de estilos que ya tenías … */
+
+table{width:100%;border-collapse:collapse}
+th,td{padding:.55rem;border-bottom:1px solid #00000055}
+th{color:var(--muted);text-align:left}
+hr{border:none;border-top:1px solid #00000055;margin:1rem 0}
+footer{opacity:.8;text-align:center;padding:2rem 0}
+
+@media print{
+  body{background:#fff;color:#000}
+  .topbar,.btn,.no-print{display:none !important}
+  .card{border:1px solid #ddd}
+}
+
+/* lo demás de CSS original … */
+
+</style>
+</head>
+<body>
+  <!-- ===== tu HTML original arriba, sin cambios, hasta llegar a Historial de cobros ===== -->
+  <!-- … -->
+  
+  <section id="viewBilling" class="hidden">
+    <div class="row"><button class="btn ghost" data-back>← Regresar al menú</button></div>
+
+    <!-- Aquí tu parte de «Historial de cobros» con botones export JSON/CSV/PDF etc. -->
+    <div class="card">
+      <h3>Historial de cobros</h3>
+      <div class="row">
+        <button class="btn small" id="btnExportInvPDF">🖨️ PDF</button>
+        <button class="btn small" id="btnExportInvJSON">💾 JSON</button>
+        <button class="btn small" id="btnExportInvCSV">📄 CSV</button>
+        <input type="file" id="importInvJSON" class="no-print" accept="application/json">
+        
+        <!-- NUEVOS controles para selección de técnica + periodo -->
+        <label style="margin-left:1rem; white-space: nowrap; align-self:center;">Técnica:</label>
+        <select class="btn small" id="invTechFilter" style="margin-left:4px;">
+          <option value="(todas)">(todas)</option>
+          <!-- se llenará dinámicamente con tus técnicas -->
+        </select>
+
+        <label style="margin-left:1rem; white-space: nowrap; align-self:center;">Periodo:</label>
+        <select class="btn small" id="invPeriodFilter" style="margin-left:4px;">
+          <option value="all">Todo</option>
+          <option value="today">Hoy</option>
+          <option value="this_week">Esta semana</option>
+          <option value="this_month">Este mes</option>
+          <option value="this_year">Este año</option>
+        </select>
+
+        <!-- Botones nuevos de export agrupado -->
+        <button class="btn small" id="btnExportInvByTechPDF">🖨️ PDF por Técnica</button>
+        <button class="btn small" id="btnExportInvByTechCSV">📄 Excel por Técnica</button>
+        <button class="btn small" id="btnExportInvByDayPDF">🖨️ PDF por Día</button>
+        <button class="btn small" id="btnExportInvByDayCSV">📄 Excel por Día</button>
+        <button class="btn small" id="btnExportInvByHourPDF">🖨️ PDF por Hora</button>
+        <button class="btn small" id="btnExportInvByHourCSV">📄 Excel por Hora</button>
+
+      </div>
+      <table id="tblInv"></table>
+    </div>
+
+  </section>
+
+  <!-- ===== resto de tus secciones originales ===== -->
+
+  <footer id="appFooter" class="no-print">© Mi Salón</footer>
+</div>
+
+<script>
+// ===== utilidades y estado, lo que ya tenías sin cambios =====
+// (toda la parte de S, state, renderAgenda, renderBilling, login/logout, etc.)
+
+/* ------------------- AÑADIR: funciones para agrupar + exportar por Técnica / Día / Hora con filtro de Período y Técnica ------------------- */
+
+// Helper para rango de período
+function getPeriodRange(period){
+  const now = new Date();
+  const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startYear = new Date(now.getFullYear(), 0, 1);
+
+  if(period === 'today'){
+    return { from: startDay, to: new Date(startDay.getFullYear(), startDay.getMonth(), startDay.getDate()+1) };
+  }
+  if(period === 'this_week'){
+    const dayOfWeek = now.getDay(); // Domingo=0, Lunes=1, etc
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    const startWeek = new Date(now);
+    startWeek.setDate(now.getDate() - diffToMonday);
+    startWeek.setHours(0,0,0,0);
+    const endWeek = new Date(startWeek);
+    endWeek.setDate(startWeek.getDate() + 7);
+    return { from: startWeek, to: endWeek };
+  }
+  if(period === 'this_month'){
+    return { from: startMonth, to: new Date(now.getFullYear(), now.getMonth()+1, 1) };
+  }
+  if(period === 'this_year'){
+    return { from: startYear, to: new Date(now.getFullYear()+1, 0, 1) };
+  }
+  return null; // para “all”
+}
+
+// Función modificada para agrupar facturas según modo + filtro
+function groupInvoicesBy(mode, opts = {}){
+  const list = state.invoices || [];
+  const techFilter = opts.tech || '(todas)';
+  const period = opts.period || 'all';
+  const pr = getPeriodRange(period);
+
+  const map = {};
+  for(const inv of list){
+    const invDate = new Date(inv.date);
+    // filtro periodo
+    if(pr){
+      if(invDate < pr.from || invDate >= pr.to) continue;
+    }
+    // filtro técnica
+    if(techFilter && techFilter !== '(todas)' && inv.tech !== techFilter) continue;
+
+    let key;
+    if(mode === 'tech'){
+      key = inv.tech || '(sin técnica)';
+    } else if(mode === 'day'){
+      key = inv.date || '(sin fecha)';
+    } else if(mode === 'hour'){
+      if(inv.time){
+        const h = inv.time.split(':')[0];
+        key = h + ':00';
+      } else {
+        key = '(sin hora)';
+      }
+    } else {
+      key = inv.tech || '(sin técnica)';
+    }
+
+    const amt = +inv.amount || 0;
+    if(!map[key]) map[key] = { key: key, total: 0, count: 0 };
+    map[key].total += amt;
+    map[key].count += 1;
+  }
+
+  return Object.values(map).sort((a,b)=> b.total - a.total || a.key.localeCompare(b.key));
+}
+
+// Export CSV agruado
+function exportInvGroupedCSV(mode){
+  const tech = document.getElementById('invTechFilter')?.value || '(todas)';
+  const period = document.getElementById('invPeriodFilter')?.value || 'all';
+  const data = groupInvoicesBy(mode, { tech, period });
+  const niceLabel = mode === 'tech' ? 'Técnica'
+                     : mode === 'day' ? 'Día'
+                     : 'Hora';
+  const rows = [[niceLabel, 'Cantidad', 'Total ($)']];
+  data.forEach(r=>{
+    rows.push([r.key, r.count, r.total.toFixed(2)]);
+  });
+  S.download(`cobros-${mode}-${tech}-${period}-${Date.now()}.csv`, S.csv(rows), 'text/csv');
+}
+
+// Export PDF agrupado
+function exportInvGroupedPDF(mode){
+  const tech = document.getElementById('invTechFilter')?.value || '(todas)';
+  const period = document.getElementById('invPeriodFilter')?.value || 'all';
+  const data = groupInvoicesBy(mode, { tech, period });
+  let sumTotal = 0, sumCount = 0;
+  data.forEach(r=>{ sumTotal += r.total; sumCount += r.count; });
+
+  const niceLabel = mode === 'tech' ? 'Técnica'
+                     : mode === 'day' ? 'Día'
+                     : 'Hora';
+  const periodLabel = period === 'today' ? 'Hoy'
+                      : period === 'this_week' ? 'Esta semana'
+                      : period === 'this_month' ? 'Este mes'
+                      : period === 'this_year' ? 'Este año'
+                      : 'Todo';
+
+  // Crear un elemento temporal para contenido del PDF
+  const div = document.createElement('div');
+  div.style.padding = "20px";
+  div.style.background = "#fff";
+  div.style.color = "#000";
+  div.innerHTML = `
+    <h1>Historial de Cobros — Agrupado por ${niceLabel}</h1>
+    <div> Técnica: ${tech} · Periodo: ${periodLabel} · Generado: ${new Date().toLocaleString()}</div>
+    <table border="1" style="width:100%; border-collapse:collapse; margin-top:12px;">
+      <thead>
+        <tr>
+          <th>${niceLabel}</th><th style="text-align:right">Cantidad</th><th style="text-align:right">Total ($)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ data.map(r=>`
+          <tr>
+            <td>${r.key}</td>
+            <td style="text-align:right">${r.count}</td>
+            <td style="text-align:right">$${r.total.toFixed(2)}</td>
+          </tr>
+        `).join('') }
+      </tbody>
+      <tfoot>
+        <tr>
+          <td>TOTAL</td><td style="text-align:right">${sumCount}</td><td style="text-align:right">$${sumTotal.toFixed(2)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
+  document.body.appendChild(div);
+  html2pdf().set({
+    margin:10,
+    filename:`cobros-${mode}-${tech}-${period}-${Date.now()}.pdf`,
+    html2canvas:{ scale:2 },
+    jsPDF:{ unit:'mm', format:'a4', orientation:'landscape' }
+  }).from(div).save()
+    .then(()=>{ document.body.removeChild(div); });
+}
+
+// ===== Enlazar botones nuevos =====
+document.getElementById('btnExportInvByTechCSV').onclick = ()=>exportInvGroupedCSV('tech');
+document.getElementById('btnExportInvByTechPDF').onclick = ()=>exportInvGroupedPDF('tech');
+document.getElementById('btnExportInvByDayCSV').onclick = ()=>exportInvGroupedCSV('day');
+document.getElementById('btnExportInvByDayPDF').onclick = ()=>exportInvGroupedPDF('day');
+document.getElementById('btnExportInvByHourCSV').onclick = ()=>exportInvGroupedCSV('hour');
+document.getElementById('btnExportInvByHourPDF').onclick = ()=>exportInvGroupedPDF('hour');
+
+/* ------------------- FIN de añadidos ------------------- */
+
+/* ===== resto de tus scripts originales sin cambios ===== */
+
+</script>
+</body>
+</html>
