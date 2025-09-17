@@ -700,53 +700,42 @@ function buildMenu(){
 
 /* ====== Servicios / Técnicas ====== */
 function refreshTechs(){
-  const sel1 = document.getElementById('invTech');
-  const sel2 = document.getElementById('invTechFilter'); // <- este es el nuevo
+  const selAp=document.getElementById('apTech');
+  const selInv=document.getElementById('invTech');
+  const selFilter=document.getElementById('invTechFilter'); // 👈 el nuevo filtro
 
-  if(sel1){
-    sel1.innerHTML = '';
-    state.techs.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = opt.textContent = t;
-      sel1.appendChild(opt);
-    });
+  // --- Para citas ---
+  if(selAp){
+    selAp.innerHTML= state.techs.map(t=>`<option>${t}</option>`).join('');
   }
 
-  if(sel2){
-    sel2.innerHTML = '';
-    const optAll = document.createElement('option');
-    optAll.value = '(todas)';
-    optAll.textContent = '(todas)';
-    sel2.appendChild(optAll);
-    state.techs.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = opt.textContent = t;
-      sel2.appendChild(opt);
-    });
+  // --- Para facturas ---
+  if(selInv){
+    selInv.innerHTML= selAp.innerHTML;
   }
-}
 
-  const selAp=document.getElementById('apTech'), selInv=document.getElementById('invTech');
-  selAp.innerHTML= state.techs.map(t=>`<option>${t}</option>`).join('');
-  selInv.innerHTML= selAp.innerHTML;
-  const ul=document.getElementById('techList'); if(ul){ ul.innerHTML='';
+  // --- Para filtro de exportación ---
+  if(selFilter){
+    selFilter.innerHTML = `<option value="(todas)">(todas)</option>` +
+      state.techs.map(t=>`<option value="${t}">${t}</option>`).join('');
+  }
+
+  // --- Lista en configuración ---
+  const ul=document.getElementById('techList'); 
+  if(ul){ 
+    ul.innerHTML='';
     state.techs.forEach((t,i)=>{
-      const li=document.createElement('li'); li.textContent=t+' ';
-      const b=document.createElement('button'); b.className='btn small danger'; b.textContent='Eliminar';
+      const li=document.createElement('li'); 
+      li.textContent=t+' ';
+      const b=document.createElement('button'); 
+      b.className='btn small danger'; 
+      b.textContent='Eliminar';
       b.onclick=()=>{ state.techs.splice(i,1); persistAll(); refreshTechs(); };
-      li.appendChild(b); ul.appendChild(li);
+      li.appendChild(b); 
+      ul.appendChild(li);
     });
   }
 }
-function refreshServices(){
-  const dl=document.getElementById('servicesList'); dl.innerHTML='';
-  state.services.forEach(s=>{ const o=document.createElement('option'); o.value=s.name; dl.appendChild(o); });
-  const tbl=document.getElementById('tblSrv'); if(tbl){
-    tbl.innerHTML='<tr><th>Servicio</th><th>Precio</th><th></th></tr>'+
-      state.services.map((s,i)=>`<tr><td>${s.name}</td><td>$${(+s.price).toFixed(2)}</td><td><button class="btn small" onclick="delSrv(${i})">Eliminar</button></td></tr>`).join('');
-  }
-}
-function delSrv(i){ state.services.splice(i,1); persistAll(); refreshServices(); }
 
 /* ====== Horario helpers ====== */
 const DKEY=['sun','mon','tue','wed','thu','fri','sat'];
