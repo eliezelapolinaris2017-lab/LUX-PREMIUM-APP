@@ -700,6 +700,33 @@ function buildMenu(){
 
 /* ====== Servicios / Técnicas ====== */
 function refreshTechs(){
+  function refreshTechs(){
+  const sel1 = document.getElementById('invTech');
+  const sel2 = document.getElementById('invTechFilter'); // <- este es el nuevo
+
+  if(sel1){
+    sel1.innerHTML = '';
+    state.techs.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = t;
+      sel1.appendChild(opt);
+    });
+  }
+
+  if(sel2){
+    sel2.innerHTML = '';
+    const optAll = document.createElement('option');
+    optAll.value = '(todas)';
+    optAll.textContent = '(todas)';
+    sel2.appendChild(optAll);
+    state.techs.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = opt.textContent = t;
+      sel2.appendChild(opt);
+    });
+  }
+}
+
   const selAp=document.getElementById('apTech'), selInv=document.getElementById('invTech');
   selAp.innerHTML= state.techs.map(t=>`<option>${t}</option>`).join('');
   selInv.innerHTML= selAp.innerHTML;
